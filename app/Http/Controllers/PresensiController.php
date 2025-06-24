@@ -1,0 +1,268 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\Siswa;
+use App\Models\Absensi;
+use App\Models\JadwalPresensi;
+use Carbon\Carbon; // Untuk bekerja dengan tanggal dan waktu
+use App\Livewire\GuruPresensiMasuk;
+use App\Livewire\GuruPresensiKeluar;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Collection;
+
+class PresensiController extends Controller
+{
+    /**
+     * Menampilkan halaman form presensi masuk dan daftar presensi hari ini.
+     */
+    public function showPresensiMasukForm(Request $request)
+    {
+        // Ambil data presensi masuk hari ini, urutkan descending berdasarkan date_time
+        $today = Carbon::today();
+        $presensiHariIni = Absensi::with(['siswa.kelas']) // Eager load relasi siswa dan kelas
+                                    ->whereDate('date_time', $today)
+                                    ->where('jenis', 'masuk')
+                                    ->orderBy('date_time', 'desc')
+                                    ->get();
+
+        // Ambil pesan error dari session jika ada
+        $errorMessage = session('error');
+        $successMessage = session('success');
+
+        return view('presensi.masuk', [
+            'presensiHariIni' => $presensiHariIni,
+            'errorMessage' => $errorMessage,
+            'successMessage' => $successMessage,
+        ]);
+    }
+
+    /**
+     * Memproses input RFID untuk presensi masuk.
+     */
+    public function processPresensiMasuk(Request $request)
+    {
+        // Validasi input RFID
+        $request->validate([
+            'rfid' => 'required|string|max:255',
+        ]);
+
+        $rfid = $request->input('rfid');
+        $now = Carbon::now();
+        $today = Carbon::today();
+        $dayOfWeek = $now->isoFormat('dddd'); // Mendapatkan nama hari dalam Bahasa Indonesia (misal: Senin)
+
+        try {
+            // 1. Periksa apakah RFID ada di tbl_siswa
+            $siswa = Siswa::where('rfid', $rfid)->first();
+
+            if (!$siswa) {
+                return redirect()->back()->with('error', 'RFID tidak ditemukan.');
+            }
+
+            // 2. Periksa apakah siswa sudah presensi masuk hari ini
+            $sudahPresensiMasuk = Absensi::where('rfid', $rfid)
+                                        ->whereDate('date_time', $today)
+                                        ->where('jenis', 'masuk')
+                                        ->exists();
+
+            if ($sudahPresensiMasuk) {
+                return redirect()->back()->with('error', 'Siswa dengan RFID ini sudah presensi masuk hari ini.');
+            }
+
+            // 3. Ambil jadwal presensi untuk hari ini
+            $jadwal = JadwalPresensi::where('hari', $dayOfWeek)->first();
+
+            if (!$jadwal) {
+                return redirect()->back()->with('error', 'Jadwal presensi untuk hari ' . $dayOfWeek . ' belum diatur.');
+            }
+
+            // 4. Bandingkan waktu sekarang dengan jam_masuk di jadwal
+            $jamMasukJadwal = Carbon::parse($jadwal->jam_masuk);
+            $status = ($now->lessThanOrEqualTo($jamMasukJadwal)) ? 'hadir' : 'terlambat';
+
+            // 5. Simpan data presensi ke tbl_absensi
+            Absensi::create([
+                'date_time' => $now,
+                'rfid' => $rfid,
+                'id_kelas' => $siswa->id_kelas,
+                'jenis' => 'masuk',
+                'status' => $status,
+                'keterangan' => null, // Keterangan awal null
+            ]);
+
+            $this->notifikasiTelegram(
+                $rfid,
+                $siswa->nama_siswa,
+                $siswa->kelas->nama_kelas ?? '-',
+                $now,
+                'masuk',
+                $status,
+                $siswa->telepon_wali
+            );
+
+            return redirect()->back()->with('success', 'Presensi masuk berhasil untuk ' . $siswa->nama_siswa . ' (Status: ' . $status . ')');
+
+        } catch (\Exception $e) {
+            // Penanganan error umum
+            return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
+    }
+
+    public function showPresensiKeluarForm(Request $request)
+    {
+        Carbon::setLocale('id'); // Pastikan locale tetap diatur
+
+        $today = Carbon::today();
+        $presensiHariIni = Absensi::with(['siswa.kelas']) // Eager load relasi siswa dan kelas
+                                    ->whereDate('date_time', $today)
+                                    ->where('jenis', 'keluar') // Hanya ambil jenis 'keluar'
+                                    ->orderBy('date_time', 'desc')
+                                    ->get();
+
+        $errorMessage = session('error');
+        $successMessage = session('success');
+
+        return view('presensi.keluar', [ // Menggunakan view presensi.keluar
+            'presensiHariIni' => $presensiHariIni,
+            'errorMessage' => $errorMessage,
+            'successMessage' => $successMessage,
+        ]);
+    }
+
+    /**
+     * Memproses input RFID untuk presensi keluar.
+     */
+    public function processPresensiKeluar(Request $request)
+    {
+        Carbon::setLocale('id'); // Pastikan locale tetap diatur
+
+        // Validasi input RFID
+        $request->validate([
+            'rfid' => 'required|string|max:255',
+        ]);
+
+        $rfid = $request->input('rfid');
+        $now = Carbon::now();
+        $today = Carbon::today();
+        $dayOfWeek = $now->isoFormat('dddd');
+
+        try {
+            // 1. Periksa apakah RFID ada di tbl_siswa (penting untuk mendapatkan id_kelas dan nama)
+            $siswa = Siswa::where('rfid', $rfid)->first();
+            if (!$siswa) {
+                return redirect()->back()->with('error', 'RFID tidak ditemukan.');
+            }
+
+            // 2. Periksa apakah siswa sudah presensi masuk hari ini
+            $sudahPresensiMasukHariIni = Absensi::where('rfid', $rfid)
+                                                ->whereDate('date_time', $today)
+                                                ->where('jenis', 'masuk')
+                                                ->exists();
+
+            if (!$sudahPresensiMasukHariIni) {
+                return redirect()->back()->with('error', 'Siswa ini belum presensi masuk hari ini.');
+            }
+
+            // 3. Periksa apakah siswa sudah presensi keluar hari ini
+            $sudahPresensiKeluarHariIni = Absensi::where('rfid', $rfid)
+                                                ->whereDate('date_time', $today)
+                                                ->where('jenis', 'keluar')
+                                                ->exists();
+
+            if ($sudahPresensiKeluarHariIni) {
+                return redirect()->back()->with('error', 'Siswa ini sudah presensi keluar hari ini.');
+            }
+
+            // 4. Ambil jadwal presensi untuk hari ini
+            $jadwal = JadwalPresensi::where('hari', $dayOfWeek)->first();
+            if (!$jadwal) {
+                return redirect()->back()->with('error', 'Jadwal presensi untuk hari ' . $dayOfWeek . ' belum diatur.');
+            }
+
+            // 5. Bandingkan waktu sekarang dengan jam_pulang di jadwal
+            $jamPulangJadwal = Carbon::parse($jadwal->jam_pulang);
+            $status = ($now->greaterThanOrEqualTo($jamPulangJadwal)) ? 'pulang' : 'bolos'; // Jika jam sekarang > jam pulang jadwal = pulang, jika < = bolos
+
+            // 6. Simpan data presensi keluar ke tbl_absensi
+            Absensi::create([
+                'date_time' => $now,
+                'rfid' => $rfid,
+                'id_kelas' => $siswa->id_kelas,
+                'jenis' => 'keluar',
+                'status' => $status,
+                'keterangan' => null, // Keterangan awal null
+            ]);
+
+            $this->notifikasiTelegram(
+                $rfid,
+                $siswa->nama_siswa,
+                $siswa->kelas->nama_kelas ?? '-',
+                $now,
+                'keluar',
+                $status,
+                $siswa->telepon_wali
+            );
+
+            return redirect()->back()->with('success', 'Presensi keluar berhasil untuk ' . $siswa->nama_siswa . ' (Status: ' . $status . ')');
+
+        } catch (\Exception $e) {
+            // Penanganan error umum
+            return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
+    }
+
+    // Presensi guru
+    public function showPresensiGuruForm()
+    {
+        // View ini hanya akan memuat komponen Livewire
+        return view('presensi.guru');
+    }
+
+    public function showPresensiGuruMasukForm() // <-- NAMA METODE BERUBAH
+    {
+        return view('presensi.guru_masuk'); // <-- View yang akan kita buat/sesuaikan
+    }
+
+    public function showPresensiGuruKeluarForm() // <-- METODE BARU
+    {
+        return view('presensi.guru_keluar'); // <-- View yang akan kita buat
+    }
+
+    protected function notifikasiTelegram($rfid, $namaSiswa, $kelas, $waktu, $jenis, $status, $telepon_wali)
+    {
+        $pengaturan = \App\Models\Pengaturan::first();
+        $token = $pengaturan?->token_telegram;
+        $chatId = $telepon_wali;
+
+        if (!$token) {
+            \Log::warning('Token Telegram tidak tersedia.');
+            return;
+        }
+
+        $formattedTime = Carbon::parse($waktu)->format('H:i');
+
+        $pesan = "📢 Notifikasi aplikasi presensi {$jenis}\n";
+        $pesan .= "Nama : {$namaSiswa}\n";
+        $pesan .= "Kelas : {$kelas}\n";
+        $pesan .= "Waktu {$jenis} : {$formattedTime}\n";
+        $pesan .= "Status : {$status}";
+
+        \Log::info("Mengirim pesan ke Telegram: \n" . $pesan);
+
+        try {
+            $response = Http::post("https://api.telegram.org/bot{$token}/sendMessage",  [
+                'chat_id' => $chatId,
+                'text' => $pesan,
+                'parse_mode' => 'HTML'
+            ]);
+
+            if ($response->failed()) {
+                \Log::error("Gagal kirim ke Telegram: " . $response->body());
+            }
+        } catch (\Exception $e) {
+            \Log::error("Exception saat kirim Telegram: " . $e->getMessage());
+        }
+    }
+}
