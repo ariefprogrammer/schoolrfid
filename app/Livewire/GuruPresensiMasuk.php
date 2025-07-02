@@ -83,7 +83,6 @@ class GuruPresensiMasuk extends Component
         $endOfWeek = Carbon::now()->endOfWeek(Carbon::SATURDAY)->toDateString();
 
         if (!$hariIni) {
-            // --- PERBAIKAN DI SINI ---
             // Panggil metode kustom yang kita buat
             $this->displayCustomNotification(
                 'Jadwal hari ini (' . $today . ') belum diatur di manajemen Hari.',
@@ -97,6 +96,7 @@ class GuruPresensiMasuk extends Component
         $this->jadwalHariIni = PresensiGuru::with(['mapel', 'jam', 'kelas'])
                                         ->where('id_guru', $this->guru->id)
                                         ->where('id_hari', $hariIni->id)
+                                        ->whereNull('jam_in')
                                         // Filter berdasarkan periode minggu ini
                                         ->where('periode_awal', $startOfWeek)
                                         ->where('periode_akhir', $endOfWeek)
