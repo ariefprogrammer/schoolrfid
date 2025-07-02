@@ -7,13 +7,26 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-
+    
     <style>
         body { background-color: #f8f9fa; }
         .logo-rfid { max-width: 120px; margin-bottom: 20px; }
         /* Tambahan untuk modal agar tampil overlay dengan benar */
         .modal.show {
             background-color: rgba(0, 0, 0, 0.5); /* Background overlay */
+        }
+        .card.bg-info {
+            background-color:rgb(0, 60, 71) !important;
+            color: #fff;
+        }
+        .card .form-check-input {
+            transform: scale(1.5);
+        }
+        .cursor-pointer {
+            cursor: pointer;
+        }
+        .card input[type="checkbox"] {
+            pointer-events: none; /* biar checkbox tidak ganggu klik label */
         }
     </style>
 

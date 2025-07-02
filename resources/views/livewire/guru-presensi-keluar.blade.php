@@ -41,58 +41,51 @@
                         <p><strong>NIP:</strong> {{ $guru->nip }}</p>
                         <p><strong>Email:</strong> {{ $guru->email }}</p>
 
-                        @if ($jadwalHariIni->isNotEmpty())
-                            <h6>Jadwal Aktif Hari Ini ({{ \Carbon\Carbon::now()->isoFormat('dddd') }})</h6> {{-- <-- Perbarui Judul Tabel --}}
-                            <div class="table-responsive">
-                                <table class="table table-striped table-bordered">
-                                    <thead>
-                                        <tr>
-                                            <th></th>
-                                            <th>Jam Ke-</th>
-                                            <th>Waktu</th>
-                                            <th>Mata Pelajaran</th>
-                                            <th>Kelas</th>
-                                            <th>Status Presensi</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach ($jadwalHariIni as $jadwal)
-                                            <tr>
-                                                <td>
-                                                    <input
-                                                        type="checkbox"
-                                                        value="{{ $jadwal->id }}"
-                                                        wire:model.live="selectedSchedules"
-                                                        class="form-check-input"
-                                                        {{-- Nonaktifkan checkbox jika sudah presensi keluar --}}
-                                                        {{ !is_null($jadwal->jam_out) ? 'disabled' : '' }}
-                                                    >
-                                                </td>
-                                                <td>{{ $jadwal->jam->ke ?? '-' }}</td>
-                                                <td>{{ \Carbon\Carbon::parse($jadwal->jam->jam_mulai)->format('H:i') ?? '-' }} - {{ \Carbon\Carbon::parse($jadwal->jam->jam_selesai)->format('H:i') ?? '-' }}</td>
-                                                <td>{{ $jadwal->mapel->mata_pelajaran ?? '-' }}</td>
-                                                <td>{{ ($jadwal->kelas->kelas ?? '') . ' ' . ($jadwal->kelas->nama_kelas ?? '-') }}</td>
-                                                <td>
+                        <div class="row g-3">
+                            @foreach ($jadwalHariIni as $jadwal)
+                                <div class="col-12">
+                                    <label class="card shadow-sm border-0 bg-info text-white w-100 cursor-pointer">
+                                        <div class="card-body d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h5 class="card-title fw-bold mb-1">
+                                                    {{ $jadwal->mapel->mata_pelajaran ?? '-' }}
+                                                    <span class="fw-normal ms-2">Jam {{ $jadwal->jam->ke ?? '-' }}</span>
+                                                </h5>
+                                                <p class="mb-0">
+                                                    Kelas: {{ ($jadwal->kelas->kelas ?? '') . ' ' . ($jadwal->kelas->nama_kelas ?? '-') }}
+                                                </p>
+                                                <p class="mb-1">
+                                                    Waktu: {{ \Carbon\Carbon::parse($jadwal->jam->jam_mulai)->format('H:i') ?? '-' }} - {{ \Carbon\Carbon::parse($jadwal->jam->jam_selesai)->format('H:i') ?? '-' }}
+                                                </p>
+                                                <div>
                                                     @if ($jadwal->jam_in && $jadwal->status_in)
-                                                        <span class="badge bg-success">Masuk ({{ \Carbon\Carbon::parse($jadwal->jam_in)->format('H:i') }})</span>
+                                                        <span class="badge bg-success me-1">Masuk ({{ \Carbon\Carbon::parse($jadwal->jam_in)->format('H:i') }})</span>
                                                     @endif
 
                                                     @if ($jadwal->jam_out && $jadwal->status_out)
                                                         <span class="badge bg-info">Keluar ({{ \Carbon\Carbon::parse($jadwal->jam_out)->format('H:i') }})</span>
                                                     @elseif ($jadwal->jam_in && is_null($jadwal->jam_out))
-                                                        <span class="badge bg-primary">Aktif</span> {{-- <-- Status Aktif --}}
+                                                        <span class="badge bg-primary">Aktif</span>
                                                     @else
-                                                        <span class="badge bg-secondary">N/A</span> {{-- Seharusnya tidak terjadi jika filter query sudah benar --}}
+                                                        <span class="badge bg-secondary">N/A</span>
                                                     @endif
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @else
-                            <p class="alert alert-info">Tidak ada jadwal aktif untuk guru ini hari ini.</p>
-                        @endif
+                                                </div>
+                                            </div>
+                                            <div class="form-check">
+                                                <input
+                                                    type="checkbox"
+                                                    value="{{ $jadwal->id }}"
+                                                    wire:model.live="selectedSchedules"
+                                                    class="form-check-input"
+                                                    {{ !is_null($jadwal->jam_out) ? 'disabled' : '' }}
+                                                >
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                            @endforeach
+                        </div>
+
                     @else
                         <p>Data guru tidak ditemukan atau belum dimuat.</p>
                     @endif
