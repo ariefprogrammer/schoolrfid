@@ -2,7 +2,8 @@
     {{-- Form Filter --}}
     {{ $this->form }}
 
-    <div class="mt-4 flex justify-end gap-x-3">
+    <div class="flex justify-end gap-x-3" style="margin-top: -20px;">
+        {{-- Tombol Tampilkan --}}
         <x-filament::button type="submit">
             Tampilkan
         </x-filament::button>

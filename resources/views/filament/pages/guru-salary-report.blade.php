@@ -15,7 +15,7 @@
     </form>
 
     @if (!empty($reportData))
-        <div class="filament-tables-wrapper mt-8">
+        <div class="filament-tables-wrapper mt-8" style="border-radius: 0.8rem; overflow-x: auto;">
             <table class="filament-tables-table w-full text-left text-sm text-gray-500 dark:text-gray-400">
                 <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
