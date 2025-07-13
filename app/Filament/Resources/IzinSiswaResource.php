@@ -25,7 +25,7 @@ class IzinSiswaResource extends Resource
     protected static ?string $navigationGroup = 'Presensi Siswa';
     protected static ?string $navigationLabel = 'Izin Siswa';
     
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 7;
 
     public static function getModel(): string
     {

@@ -22,7 +22,7 @@ class PresensiGuruResource extends Resource
     protected static ?string $navigationGroup = 'Laporan'; // Letakkan di grup Laporan
     protected static ?string $navigationLabel = 'Laporan Presensi Guru';
     protected static ?string $pluralLabel = 'Laporan Presensi Guru';
-    protected static ?int $navigationSort = 14;
+    protected static ?int $navigationSort = 24;
 
     public static function form(Form $form): Form
     {

@@ -19,6 +19,7 @@ class IzinTendikResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
     protected static ?string $navigationGroup = 'Presensi Tendik';
     protected static ?string $navigationLabel = 'Izin Tendik';
+    protected static ?int $navigationSort = 10;
 
     public static function getEloquentQuery(): Builder
     {

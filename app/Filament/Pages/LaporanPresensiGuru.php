@@ -44,7 +44,6 @@ class LaporanPresensiGuru extends Page implements HasForms, HasTable
     protected static string $resource = PresensiGuruResource::class;
     protected static string $view = 'filament.resources.absensi-resource.pages.absensi.laporan-presensi-guru';
     protected static ?string $title = 'Laporan Rekap Presensi Guru';
-    protected static ?int $navigationSort = 13;
     
     public ?array $data = [];
     

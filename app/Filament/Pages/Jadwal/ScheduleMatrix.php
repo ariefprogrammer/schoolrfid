@@ -34,7 +34,7 @@ class ScheduleMatrix extends Page implements HasForms
     protected static ?string $navigationLabel = 'Matriks Jadwal';
     protected static ?string $title = 'Matriks Jadwal Pelajaran';
     protected static string $view = 'filament.pages.jadwal.schedule-matrix';
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 15;
     
     public ?array $data = [];
 

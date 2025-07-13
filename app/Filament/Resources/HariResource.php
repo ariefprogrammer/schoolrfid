@@ -22,7 +22,7 @@ class HariResource extends Resource
     protected static ?string $navigationGroup = 'Data Guru'; // Bisa dimasukkan ke grup Pengaturan
     protected static ?string $navigationLabel = 'Hari';
     protected static ?string $pluralLabel = 'Hari';
-    protected static ?int $navigationSort = 6; // Urutkan setelah Pengaturan Aplikasi (jika Pengaturan Aplikasi 10)
+    protected static ?int $navigationSort = 11; // Urutkan setelah Pengaturan Aplikasi (jika Pengaturan Aplikasi 10)
 
     public static function form(Form $form): Form
     {

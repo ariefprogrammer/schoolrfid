@@ -29,7 +29,7 @@ class RekapSiswa extends Page
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
     protected static ?string $navigationLabel = 'Laporan Rekap Siswa';
     protected static ?string $navigationGroup = 'Laporan';
-    protected static ?int $navigationSort = 14;
+    protected static ?int $navigationSort = 23;
     protected static ?string $title = 'Laporan Rekap Siswa';
     protected static string $view = 'filament.pages.rekap-siswa';
 

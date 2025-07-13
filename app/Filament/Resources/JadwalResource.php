@@ -24,7 +24,6 @@ class JadwalResource extends Resource
     protected static ?string $model = Jadwal::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar'; // Ikon kalender
-    protected static ?int $navigationSort = 50; // Urutan pertama di group Jadwal
     protected static bool $shouldRegisterNavigation = false;
 
     public static function form(Form $form): Form

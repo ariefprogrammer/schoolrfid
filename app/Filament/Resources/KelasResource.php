@@ -23,7 +23,7 @@ class KelasResource extends Resource
     // Tambahkan label navigasi jika perlu
     protected static ?string $navigationLabel = 'Kelas';
     protected static ?string $pluralLabel = 'Kelas'; 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 16;
     protected static ?string $navigationGroup = 'Siswa';
 
     public static function getNavigationBadge(): ?string

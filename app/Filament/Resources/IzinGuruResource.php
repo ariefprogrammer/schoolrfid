@@ -23,7 +23,7 @@ class IzinGuruResource extends Resource
 
     protected static ?string $navigationGroup = 'Presensi Guru';
     protected static ?string $navigationLabel = 'Izin Guru';
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 4;
 
     public static function form(Form $form): Form
     {

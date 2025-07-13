@@ -28,7 +28,7 @@ class AppSettings extends Page implements HasForms
     protected static ?string $navigationLabel = 'Pengaturan Aplikasi';
     protected static ?string $title = 'Pengaturan Aplikasi';
     protected static string $view = 'filament.pages.pengaturan';
-    protected static ?int $navigationSort = 14;
+    protected static ?int $navigationSort = 27;
 
     public ?array $data = [];
     public ?Pengaturan $settings = null;

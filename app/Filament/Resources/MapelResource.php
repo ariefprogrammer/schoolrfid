@@ -22,7 +22,7 @@ class MapelResource extends Resource
     protected static ?string $navigationGroup = 'Data Guru'; // Bisa dimasukkan ke grup Pengaturan
     protected static ?string $navigationLabel = 'Mata Pelajaran';
     protected static ?string $pluralLabel = 'Mata Pelajaran';
-    protected static ?int $navigationSort = 8; // Urutkan setelah Manajemen Jam Pelajaran (jika Jam 30)
+    protected static ?int $navigationSort = 13; // Urutkan setelah Manajemen Jam Pelajaran (jika Jam 30)
 
     public static function form(Form $form): Form
     {

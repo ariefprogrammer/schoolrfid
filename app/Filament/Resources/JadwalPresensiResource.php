@@ -24,7 +24,7 @@ class JadwalPresensiResource extends Resource
 
     protected static ?string $navigationLabel = 'Jadwal Presensi';
     protected static ?string $pluralLabel = 'Jadwal Presensi';
-    protected static ?int $navigationSort = 11;
+    protected static ?int $navigationSort = 18;
     protected static ?string $navigationGroup = 'Siswa';
 
     public static function form(Form $form): Form

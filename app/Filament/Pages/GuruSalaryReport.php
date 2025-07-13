@@ -31,7 +31,7 @@ class GuruSalaryReport extends Page implements HasForms
     protected static ?string $navigationIcon = 'heroicon-o-currency-dollar';
     protected static ?string $navigationLabel = 'Laporan Gaji Guru';
     protected static ?string $navigationGroup = 'Laporan';
-    protected static ?int $navigationSort = 15;
+    protected static ?int $navigationSort = 25;
     protected static ?string $title = 'Laporan Gaji Guru';
     protected static string $view = 'filament.pages.guru-salary-report';
 

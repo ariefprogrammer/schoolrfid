@@ -35,7 +35,7 @@ class LaporanPresensiSiswa extends Page implements HasForms, HasTable
     protected static string $resource = AbsensiResource::class;
     protected static string $view = 'filament.resources.absensi-resource.pages.absensi.general-report';
     protected static ?string $title = 'Laporan Presensi Siswa';
-    protected static ?int $navigationSort = 12;
+    protected static ?int $navigationSort = 22;
 
     public ?array $data = [];
 

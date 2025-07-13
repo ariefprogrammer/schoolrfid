@@ -21,7 +21,7 @@ class UserResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-users'; // Icon untuk navigasi sidebar
     protected static ?string $navigationGroup = 'Manajemen Akses'; // Opsional: kelompokkan di navigasi
     protected static ?string $navigationLabel = 'Guru Piket'; // Label di navigasi
-    protected static ?int $navigationSort = 25;
+    protected static ?int $navigationSort = 28;
 
     public static function form(Form $form): Form
     {

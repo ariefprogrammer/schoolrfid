@@ -21,7 +21,7 @@ class AbsensiResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-document-text'; // Ikon untuk laporan
     protected static ?string $navigationGroup = 'Laporan'; // Grup navigasi
     protected static ?string $navigationLabel = 'Laporan Presensi Siswa'; // Label menu di sidebar
-    protected static ?int $navigationSort = 6; // Untuk mengatur urutan menu
+    protected static ?int $navigationSort = 22; // Untuk mengatur urutan menu
 
     // Hapus atau kosongkan metode form dan table
     // Kita tidak akan menggunakan CRUD standar Filament di sini

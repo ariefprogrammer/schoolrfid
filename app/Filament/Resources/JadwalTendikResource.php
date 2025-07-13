@@ -21,7 +21,7 @@ class JadwalTendikResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?string $navigationGroup = 'Data Tendik';
     protected static ?string $navigationLabel = 'Jadwal Tendik';
-    protected static ?int $navigationSort = 11;
+    protected static ?int $navigationSort = 21;
 
     public static function getEloquentQuery(): Builder
     {

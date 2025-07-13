@@ -30,7 +30,7 @@ class SiswaResource extends Resource
 
     protected static ?string $navigationLabel = 'Siswa';
     protected static ?string $pluralLabel = 'Siswa';
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 17;
     protected static ?string $navigationGroup = 'Siswa';
 
     public static function getNavigationBadge(): ?string

@@ -18,7 +18,7 @@ class JabatanResource extends Resource
 
     protected static ?string $navigationLabel = 'Jabatan';
     protected static ?string $navigationGroup = 'Data Tendik';
-    protected static ?int $navigationSort = 9;
+    protected static ?int $navigationSort = 19;
 
     public static function form(Form $form): Form
     {

@@ -70,32 +70,32 @@ class AdministratorPanelProvider extends PanelProvider
                     ->url(url('presensi-guru-masuk'), shouldOpenInNewTab: true)
                     ->icon('heroicon-o-presentation-chart-line')
                     ->group('Presensi Guru')
-                    ->sort(1),
+                    ->sort(2),
                 NavigationItem::make('Presensi Keluar')
                     ->url(url('presensi-guru-keluar'), shouldOpenInNewTab: true)
                     ->icon('heroicon-o-presentation-chart-line')
                     ->group('Presensi Guru')
-                    ->sort(2),
+                    ->sort(3),
                 NavigationItem::make('Presensi Masuk')
                     ->url(url('presensi-masuk'), shouldOpenInNewTab: true)
                     ->icon('heroicon-o-presentation-chart-line')
                     ->group('Presensi Siswa')
-                    ->sort(3),
+                    ->sort(5),
                 NavigationItem::make('Presensi Keluar')
                     ->url(url('presensi-keluar'), shouldOpenInNewTab: true)
                     ->icon('heroicon-o-presentation-chart-line')
                     ->group('Presensi Siswa')
-                    ->sort(4),
+                    ->sort(6),
                 NavigationItem::make('Presensi Masuk')
                     ->url(url('presensi-tendik-masuk'), shouldOpenInNewTab: true)
                     ->icon('heroicon-o-presentation-chart-line')
                     ->group('Presensi Tendik')
-                    ->sort(5),
+                    ->sort(8),
                 NavigationItem::make('Presensi Keluar')
                     ->url(url('presensi-tendik-keluar'), shouldOpenInNewTab: true)
                     ->icon('heroicon-o-presentation-chart-line')
                     ->group('Presensi Tendik')
-                    ->sort(6),
+                    ->sort(9),
             ]);
     }
 }

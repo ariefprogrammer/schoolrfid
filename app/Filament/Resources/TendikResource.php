@@ -17,7 +17,7 @@ class TendikResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?string $navigationGroup = 'Data Tendik';
     protected static ?string $navigationLabel = 'Tenaga Pendidik';
-    protected static ?int $navigationSort = 10;
+    protected static ?int $navigationSort = 20;
 
     public static function form(Form $form): Form
     {

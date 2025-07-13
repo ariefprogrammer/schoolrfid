@@ -23,7 +23,7 @@ class JamResource extends Resource
     protected static ?string $navigationGroup = 'Data Guru'; // Bisa dimasukkan ke grup Pengaturan
     protected static ?string $navigationLabel = 'Jam Pelajaran';
     protected static ?string $pluralLabel = 'Jam Pelajaran';
-    protected static ?int $navigationSort = 7; // Urutkan setelah Manajemen Hari (jika Hari 20)
+    protected static ?int $navigationSort = 12; // Urutkan setelah Manajemen Hari (jika Hari 20)
 
     public static function form(Form $form): Form
     {

@@ -24,7 +24,7 @@ class GuruResource extends Resource
     protected static ?string $navigationGroup = 'Data Guru'; // Letakkan di group Manajemen Data
     protected static ?string $navigationLabel = 'Guru';
     protected static ?string $pluralLabel = 'Guru';
-    protected static ?int $navigationSort = 5; // Urutkan setelah Siswa jika Siswa 20
+    protected static ?int $navigationSort = 14; // Urutkan setelah Siswa jika Siswa 20
 
     public static function getNavigationBadge(): ?string
     {
