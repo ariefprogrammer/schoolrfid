@@ -42,10 +42,22 @@
             <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item">
-                <a class="nav-link nav-outline active me-2" href="{{ route('presensi.masuk.form') }}">Presensi Masuk</a>
+                    <a class="nav-link nav-outline me-2" href="{{ route('presensi.guru.masuk.form') }}">Guru Masuk</a>
                 </li>
                 <li class="nav-item">
-                <a class="nav-link nav-outline" href="#">Presensi Keluar</a> {{-- Nanti bisa dibuat link ke presensi keluar --}}
+                    <a class="nav-link nav-outline me-2" href="{{ route('presensi.guru.keluar.form') }}">Guru Keluar</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link nav-outline active me-2" href="{{ route('presensi.masuk.form') }}">Siswa Masuk</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link nav-outline me-2" href="{{ route('presensi.keluar.form') }}">Siswa Keluar</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link nav-outline me-2" href="{{ route('presensi.tendik.masuk.form') }}">Tendik Masuk</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link nav-outline" href="{{ route('presensi.tendik.keluar.form') }}">Tendik Keluar</a>
                 </li>
             </ul>
             </div>

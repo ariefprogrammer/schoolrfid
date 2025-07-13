@@ -12,6 +12,19 @@
         body { background-color: #f8f9fa; }
         .logo-rfid { max-width: 120px; margin-bottom: 20px; }
         .modal.show { background-color: rgba(0, 0, 0, 0.5); }
+        .nav-link.nav-outline {
+            border: 1px solid #c5c5c599;
+            border-radius: 5px;
+            padding: 6px 15px;
+            margin-top: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link.nav-outline:hover,
+        .nav-link.nav-outline.active {
+            color: #93b4d4 !important;
+            border-color: #ffffff;
+        }
         
     </style>
 
@@ -28,16 +41,22 @@
             <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item">
-                <a class="nav-link nav-outline me-2" href="{{ route('presensi.masuk.form') }}">Presensi Siswa Masuk</a>
+                    <a class="nav-link nav-outline active me-2" href="{{ route('presensi.guru.masuk.form') }}">Guru Masuk</a>
                 </li>
                 <li class="nav-item">
-                <a class="nav-link nav-outline" href="{{ route('presensi.keluar.form') }}">Presensi Siswa Keluar</a>
+                    <a class="nav-link nav-outline me-2" href="{{ route('presensi.guru.keluar.form') }}">Guru Keluar</a>
                 </li>
                 <li class="nav-item">
-                <a class="nav-link nav-outline active ms-2" href="{{ route('presensi.guru.masuk.form') }}">Presensi Guru Masuk</a>
+                    <a class="nav-link nav-outline me-2" href="{{ route('presensi.masuk.form') }}">Siswa Masuk</a>
                 </li>
                 <li class="nav-item">
-                <a class="nav-link nav-outline me-2" href="{{ route('presensi.guru.keluar.form') }}">Presensi Guru Keluar</a>
+                    <a class="nav-link nav-outline me-2" href="{{ route('presensi.keluar.form') }}">Siswa Keluar</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link nav-outline me-2" href="{{ route('presensi.tendik.masuk.form') }}">Tendik Masuk</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link nav-outline" href="{{ route('presensi.tendik.keluar.form') }}">Tendik Keluar</a>
                 </li>
             </ul>
             </div>
