@@ -10,6 +10,7 @@ use Filament\Forms\Form;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Resources\Resource;
+use App\Models\User;
 
 class TendikResource extends Resource
 {
@@ -88,5 +89,11 @@ class TendikResource extends Resource
             'create' => Pages\CreateTendik::route('/create'),
             'edit' => Pages\EditTendik::route('/{record}/edit'),
         ];
+    }
+
+    public static function canViewAny(): bool
+    {
+        // Contoh: Hanya role 'admin' yang bisa melihat Resource Guru
+        return auth()->user()->role === 'admin';
     }
 }

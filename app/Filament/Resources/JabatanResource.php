@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use App\Models\User;
 
 class JabatanResource extends Resource
 {
@@ -69,5 +70,11 @@ class JabatanResource extends Resource
             'create' => Pages\CreateJabatan::route('/create'),
             'edit' => Pages\EditJabatan::route('/{record}/edit'),
         ];
+    }
+
+    public static function canViewAny(): bool
+    {
+        // Contoh: Hanya role 'admin' yang bisa melihat Resource Guru
+        return auth()->user()->role === 'admin';
     }
 }

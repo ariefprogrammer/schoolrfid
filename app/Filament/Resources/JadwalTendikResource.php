@@ -13,6 +13,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use App\Models\User;
 
 class JadwalTendikResource extends Resource
 {
@@ -126,5 +127,11 @@ class JadwalTendikResource extends Resource
             'create' => Pages\CreateJadwalTendik::route('/create'),
             'edit' => Pages\EditJadwalTendik::route('/{record}/edit'),
         ];
+    }
+
+    public static function canViewAny(): bool
+    {
+        // Contoh: Hanya role 'admin' yang bisa melihat Resource Guru
+        return auth()->user()->role === 'admin';
     }
 }
