@@ -6,6 +6,9 @@ use Illuminate\Http\Request;
 use App\Models\Siswa;
 use App\Models\Absensi;
 use App\Models\JadwalPresensi;
+use App\Models\JadwalTendik;
+use App\Models\Tendik;
+use App\Models\PresensiTendik;
 use Carbon\Carbon; // Untuk bekerja dengan tanggal dan waktu
 use App\Livewire\GuruPresensiMasuk;
 use App\Livewire\GuruPresensiKeluar;
@@ -229,6 +232,174 @@ class PresensiController extends Controller
     {
         return view('presensi.guru_keluar'); // <-- View yang akan kita buat
     }
+
+    // Presensi masuk (tendik) 
+    public function showPresensiTendikMasukForm()
+    {
+        $today = Carbon::today();
+        $presensiHariIni = PresensiTendik::with('tendik') // jika nanti ingin eager load relasi
+                                ->whereDate('date_time', $today)
+                                ->where('jenis', 'masuk')
+                                ->orderBy('date_time', 'desc')
+                                ->get();
+
+        $errorMessage = session('error');
+        $successMessage = session('success');
+
+        return view('presensi.tendik_masuk', [
+            'presensiHariIni' => $presensiHariIni,
+            'errorMessage' => $errorMessage,
+            'successMessage' => $successMessage,
+        ]);
+    }
+
+
+    public function processPresensiTendikMasuk(Request $request)
+    {
+        $request->validate([
+            'rfid' => 'required|string|max:255',
+        ]);
+
+        $rfid = $request->input('rfid');
+        $now = Carbon::now();
+        $today = Carbon::today();
+        $namaHari = $now->locale('id')->isoFormat('dddd'); // nama hari dalam bahasa Indonesia: Senin, Selasa, dst
+
+        try {
+            $tendik = Tendik::where('rfid', $rfid)->first();
+
+            if (!$tendik) {
+                return redirect()->back()->with('error', 'RFID tendik tidak ditemukan.');
+            }
+
+            // Cek apakah sudah presensi masuk hari ini
+            $sudahPresensi = PresensiTendik::where('rfid', $rfid)
+                ->whereDate('date_time', $today)
+                ->where('jenis', 'masuk')
+                ->exists();
+
+            if ($sudahPresensi) {
+                return redirect()->back()->with('error', 'Tendik sudah presensi masuk hari ini.');
+            }
+
+            // Ambil jadwal tendik untuk hari ini
+            $jadwalHariIni = JadwalTendik::where('tendik_id', $tendik->id)
+                ->whereHas('hari', fn ($q) => $q->where('hari', $namaHari))
+                ->first();
+
+            if (!$jadwalHariIni) {
+                return redirect()->back()->with('error', 'Hari ini tidak ada jadwal untuk tendik ' . $tendik->nama . '.');
+            }
+
+            // Bandingkan waktu sekarang dengan jadwal_masuk
+            $jadwalMasuk = Carbon::parse($jadwalHariIni->jadwal_masuk);
+            $status = $now->lessThanOrEqualTo($jadwalMasuk) ? 'hadir' : 'terlambat';
+
+            // Simpan presensi
+            PresensiTendik::create([
+                'date_time' => $now,
+                'rfid' => $rfid,
+                'jenis' => 'masuk',
+                'status' => $status,
+                'keterangan' => null,
+            ]);
+
+            return redirect()->back()->with('success', 'Presensi masuk berhasil untuk ' . $tendik->nama . ' (Status: ' . $status . ')');
+
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
+    }
+
+    // Presensi keluar (tendik)
+    public function showPresensiTendikKeluarForm()
+    {
+        $today = Carbon::today();
+
+        $presensiHariIni = PresensiTendik::whereDate('date_time', $today)
+            ->where('jenis', 'keluar')
+            ->with('tendik') // kalau ada relasi tendik di model
+            ->orderBy('date_time', 'desc')
+            ->get();
+
+        $errorMessage = session('error');
+        $successMessage = session('success');
+
+        return view('presensi.tendik_keluar', [
+            'presensiHariIni' => $presensiHariIni,
+            'errorMessage' => $errorMessage,
+            'successMessage' => $successMessage,
+        ]);
+    }
+
+    public function processPresensiTendikKeluar(Request $request)
+    {
+        $request->validate([
+            'rfid' => 'required|string|max:255',
+        ]);
+
+        $rfid = $request->input('rfid');
+        $now = Carbon::now();
+        $today = Carbon::today();
+        $namaHari = $now->locale('id')->isoFormat('dddd'); // Senin, dst.
+
+        try {
+            $tendik = Tendik::where('rfid', $rfid)->first();
+
+            if (!$tendik) {
+                return redirect()->back()->with('error', 'RFID tendik tidak ditemukan.');
+            }
+
+            // Pastikan sudah presensi masuk hari ini
+            $sudahMasuk = PresensiTendik::where('rfid', $rfid)
+                ->whereDate('date_time', $today)
+                ->where('jenis', 'masuk')
+                ->exists();
+
+            if (!$sudahMasuk) {
+                return redirect()->back()->with('error', 'Tendik belum presensi masuk hari ini.');
+            }
+
+            // Pastikan belum presensi keluar hari ini
+            $sudahKeluar = PresensiTendik::where('rfid', $rfid)
+                ->whereDate('date_time', $today)
+                ->where('jenis', 'keluar')
+                ->exists();
+
+            if ($sudahKeluar) {
+                return redirect()->back()->with('error', 'Tendik sudah presensi keluar hari ini.');
+            }
+
+            // Ambil jadwal tendik untuk hari ini
+            $jadwalHariIni = JadwalTendik::where('tendik_id', $tendik->id)
+                ->whereHas('hari', fn ($q) => $q->where('hari', $namaHari))
+                ->first();
+
+            if (!$jadwalHariIni) {
+                return redirect()->back()->with('error', 'Hari ini tidak ada jadwal untuk tendik ' . $tendik->nama . '.');
+            }
+
+            // Bandingkan waktu sekarang dengan jadwal_keluar
+            $jadwalKeluar = Carbon::parse($jadwalHariIni->jadwal_keluar);
+            $status = $now->greaterThanOrEqualTo($jadwalKeluar) ? 'pulang' : 'bolos';
+
+            // Simpan presensi keluar
+            PresensiTendik::create([
+                'date_time' => $now,
+                'rfid' => $rfid,
+                'jenis' => 'keluar',
+                'status' => $status,
+                'keterangan' => null,
+            ]);
+
+            return redirect()->back()->with('success', 'Presensi keluar berhasil untuk ' . $tendik->nama . ' (Status: ' . $status . ')');
+
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
+    }
+
+
 
     protected function notifikasiTelegram($rfid, $namaSiswa, $kelas, $waktu, $jenis, $status, $telepon_wali)
     {

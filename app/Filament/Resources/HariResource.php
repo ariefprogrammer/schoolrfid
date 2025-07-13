@@ -39,6 +39,7 @@ class HariResource extends Resource
                         'Kamis' => 'Kamis',
                         'Jumat' => 'Jumat',
                         'Sabtu' => 'Sabtu',
+                        'Minggu' => 'Minggu',
                     ])
                     ->placeholder('Pilih Hari'),
                 Forms\Components\TextInput::make('order')

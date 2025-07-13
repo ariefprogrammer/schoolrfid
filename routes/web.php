@@ -28,6 +28,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/presensi-guru-masuk', [\App\Http\Controllers\PresensiController::class, 'showPresensiGuruMasukForm'])->name('presensi.guru.masuk.form');
     Route::get('/presensi-guru-keluar', [\App\Http\Controllers\PresensiController::class, 'showPresensiGuruKeluarForm'])->name('presensi.guru.keluar.form');
     
+    Route::get('/presensi-tendik-masuk', [PresensiController::class, 'showPresensiTendikMasukForm'])->name('presensi.tendik.masuk.form');
+    Route::post('/presensi-tendik-masuk', [PresensiController::class, 'processPresensiTendikMasuk'])->name('presensi.tendik.masuk.process');
+
+    Route::get('/presensi-tendik-keluar', [PresensiController::class, 'showPresensiTendikKeluarForm'])->name('presensi.tendik.keluar.form');
+    Route::post('/presensi-tendik-keluar', [PresensiController::class, 'processPresensiTendikKeluar'])->name('presensi.tendik.keluar.process');
+
+
+
 });
 
 Route::get('/login', function () {

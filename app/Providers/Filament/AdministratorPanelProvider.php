@@ -86,6 +86,16 @@ class AdministratorPanelProvider extends PanelProvider
                     ->icon('heroicon-o-presentation-chart-line')
                     ->group('Presensi Siswa')
                     ->sort(4),
+                NavigationItem::make('Presensi Masuk')
+                    ->url(url('presensi-tendik-masuk'), shouldOpenInNewTab: true)
+                    ->icon('heroicon-o-presentation-chart-line')
+                    ->group('Presensi Tendik')
+                    ->sort(5),
+                NavigationItem::make('Presensi Keluar')
+                    ->url(url('presensi-tendik-keluar'), shouldOpenInNewTab: true)
+                    ->icon('heroicon-o-presentation-chart-line')
+                    ->group('Presensi Tendik')
+                    ->sort(6),
             ]);
     }
 }
