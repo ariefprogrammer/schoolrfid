@@ -15,6 +15,17 @@ class TutupSiswaMasuk extends Command
     {
         $today = Carbon::today();
 
+        // Cek apakah ada minimal 1 siswa yang sudah presensi masuk hari ini
+        $adaPresensiHariIni = DB::table('tbl_absensi')
+            ->whereDate('date_time', $today)
+            ->where('jenis', 'masuk')
+            ->exists();
+
+        if (!$adaPresensiHariIni) {
+            $this->info("Tidak ditemukan presensi masuk pada hari ini. Kemungkinan sekolah libur, cron job tidak dijalankan.");
+            return Command::SUCCESS;
+        }
+
         // Ambil semua siswa
         $siswas = DB::table('tbl_siswa')->get();
 

@@ -14,6 +14,19 @@ class TutupPresensiKeluar extends Command
     public function handle()
     {
         $today = Carbon::today();
+
+        // Cek apakah ada presensi masuk hari ini
+        $adaPresensiMasuk = DB::table('tbl_absensi')
+            ->whereDate('date_time', $today)
+            ->where('jenis', 'masuk')
+            ->whereIn('status', ['hadir', 'terlambat'])
+            ->exists();
+
+        if (!$adaPresensiMasuk) {
+            $this->info("🚫 Tidak ditemukan presensi masuk pada hari ini. Kemungkinan sekolah libur, cron job tutup presensi keluar tidak dijalankan.");
+            return Command::SUCCESS;
+        }
+        
         $count = 0;
 
         // Ambil semua siswa
