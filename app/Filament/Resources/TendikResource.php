@@ -11,6 +11,9 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Resources\Resource;
 use App\Models\User;
+use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\DB;
+use Filament\Tables\Actions\EditAction;
 
 class TendikResource extends Resource
 {
@@ -47,9 +50,11 @@ class TendikResource extends Resource
                     ->required(),
 
                 Forms\Components\TextInput::make('rfid')
-                    ->label('RFID')
-                    ->unique()
-                    ->required(),
+                    ->label('Kode RFID')
+                    ->maxLength(255)
+                    ->required(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TendikResource\Pages\CreateTendik)
+                    ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\TendikResource\Pages\CreateTendik)
+                    ->unique(ignoreRecord: true),
             ]);
     }
 
@@ -67,8 +72,40 @@ class TendikResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\Action::make('gantiRfid')
+                    ->label('')
+                    ->icon('heroicon-o-key')
+                    ->tooltip('Ganti RFID')
+                    ->color('info')
+                    ->form([
+                        Forms\Components\TextInput::make('rfid')
+                            ->label('Kode RFID Baru')
+                            ->required()
+                            ->maxLength(255),
+                    ])
+                    ->action(function (array $data, $record) {
+                        \DB::transaction(function () use ($data, $record) {
+                            $oldRfid = $record->rfid;
+
+                            // Update tabel siswa
+                            $record->update([
+                                'rfid' => $data['rfid'],
+                            ]);
+
+                            // Update tabel absensi
+                            \DB::table('tbl_presensi_tendik')
+                                ->where('rfid', $oldRfid)
+                                ->update(['rfid' => $data['rfid']]);
+                        });
+
+                        Notification::make()
+                            ->title('RFID berhasil diperbarui di data siswa & absensi')
+                            ->success()
+                            ->send();
+                    }),
+
+                Tables\Actions\EditAction::make()->label('')->tooltip('Edit'),
+                Tables\Actions\DeleteAction::make()->label('')->tooltip('Hapus'),
             ])
             ->bulkActions([
                 Tables\Actions\DeleteBulkAction::make(),
