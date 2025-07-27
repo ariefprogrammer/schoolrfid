@@ -19,6 +19,7 @@ use Filament\Forms\Components\FileUpload;
 use App\Imports\SiswasImport;
 use Filament\Notifications\Notification;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 
 
@@ -137,6 +138,38 @@ class SiswaResource extends Resource
                     })),
             ])
             ->actions([
+                Tables\Actions\Action::make('gantiRfid')
+                    ->label('')
+                    ->icon('heroicon-o-key')
+                    ->tooltip('Ganti RFID')
+                    ->color('info')
+                    ->form([
+                        Forms\Components\TextInput::make('rfid')
+                            ->label('Kode RFID Baru')
+                            ->required()
+                            ->maxLength(255),
+                    ])
+                    ->action(function (array $data, $record) {
+                        \DB::transaction(function () use ($data, $record) {
+                            $oldRfid = $record->rfid;
+
+                            // Update tabel siswa
+                            $record->update([
+                                'rfid' => $data['rfid'],
+                            ]);
+
+                            // Update tabel absensi
+                            \DB::table('tbl_absensi')
+                                ->where('rfid', $oldRfid)
+                                ->update(['rfid' => $data['rfid']]);
+                        });
+
+                        Notification::make()
+                            ->title('RFID berhasil diperbarui di data siswa & absensi')
+                            ->success()
+                            ->send();
+                    }),
+
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
