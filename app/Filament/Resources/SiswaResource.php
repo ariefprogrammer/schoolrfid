@@ -45,10 +45,10 @@ class SiswaResource extends Resource
             ->schema([
                 Forms\Components\TextInput::make('rfid')
                     ->label('Kode RFID')
-                    ->unique(ignoreRecord: true)
                     ->maxLength(255)
-                    ->nullable()
-                    ->hint(new HtmlString('Kosongkan untuk menggenerate secara otomatis atau isi jika sudah memiliki RFID.')),
+                    ->required(fn ($livewire) => $livewire instanceof \App\Filament\Resources\SiswaResource\Pages\CreateSiswa)
+                    ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\SiswaResource\Pages\CreateSiswa)
+                    ->unique(ignoreRecord: true),
 
                 Forms\Components\TextInput::make('nis')
                     ->label('Nomor Induk Siswa (NIS)')
@@ -170,8 +170,8 @@ class SiswaResource extends Resource
                             ->send();
                     }),
 
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()->label('')->tooltip('Edit'),
+                Tables\Actions\DeleteAction::make()->label('')->tooltip('Hapus'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
