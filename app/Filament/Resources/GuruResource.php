@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Hash; // Untuk hashing password
 use Illuminate\Support\HtmlString; // Untuk helper text
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Filament\Notifications\Notification;
 
 class GuruResource extends Resource
 {
@@ -64,15 +66,11 @@ class GuruResource extends Resource
                     ->maxLength(255),
                 Forms\Components\TextInput::make('rfid')
                     ->label('Kode RFID')
-                    ->required() // **Wajib diisi**
-                    ->unique(ignoreRecord: true)
                     ->maxLength(255)
-                    // Nonaktifkan field saat operasi "edit"
-                    ->disabled(fn (string $operation): bool => $operation === 'edit')
-                    // Sembunyikan field saat operasi "edit" (opsional, tergantung preferensi UI)
-                    // ->hidden(fn (string $operation): bool => $operation === 'edit')
-                    ->helperText(new HtmlString('RFID **wajib diisi** saat membuat data baru. Tidak bisa diubah setelah dibuat. ' .
-                                 'Jika perlu mengubah RFID, hapus data dan buat ulang, atau hubungi admin sistem.')),
+                    ->required(fn ($livewire) => $livewire instanceof \App\Filament\Resources\GuruResource\Pages\CreateGuru)
+                    ->visible(fn ($livewire) => $livewire instanceof \App\Filament\Resources\GuruResource\Pages\CreateGuru)
+                    ->unique(ignoreRecord: true)
+                    ->helperText(new HtmlString('RFID <strong>wajib diisi</strong> saat membuat data baru.')),
             ]);
     }
 
@@ -84,6 +82,9 @@ class GuruResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->label('Kode'),
+                Tables\Columns\TextColumn::make('rfid')
+                    ->searchable()
+                    ->label('RFID'),
                 Tables\Columns\TextColumn::make('nip')
                     ->searchable()
                     ->sortable()
@@ -96,10 +97,6 @@ class GuruResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->label('Email'),
-                Tables\Columns\TextColumn::make('rfid')
-                    ->searchable()
-                    ->label('RFID')
-                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -115,12 +112,41 @@ class GuruResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\Action::make('gantiRfid')
+                    ->label('')
+                    ->icon('heroicon-o-key')
+                    ->tooltip('Ganti RFID')
+                    ->color('info')
+                    ->form([
+                        Forms\Components\TextInput::make('rfid')
+                            ->label('Kode RFID Baru')
+                            ->required()
+                            ->maxLength(255),
+                    ])
+                    ->action(function (array $data, Guru $record) {
+                        $record->rfid = $data['rfid'];
+                        $record->save();
+
+                        Notification::make()
+                            ->title('RFID berhasil diperbarui')
+                            ->success()
+                            ->send();
+                    }),
+
+
+                Tables\Actions\EditAction::make()
+                    ->label('')
+                    ->icon('heroicon-o-pencil-square')
+                    ->tooltip('Edit'),
+
+                Tables\Actions\DeleteAction::make()
+                    ->label('')
+                    ->icon('heroicon-o-trash')
+                    ->tooltip('Hapus'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
     }
