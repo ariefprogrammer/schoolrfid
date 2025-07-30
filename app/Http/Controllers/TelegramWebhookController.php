@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Siswa;
 use App\Models\Guru;
+use App\Models\Pengaturan;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -63,11 +64,18 @@ class TelegramWebhookController extends Controller
 
     private function sendTelegramMessage($chatId, $message)
     {
-        $botToken = env('TELEGRAM_BOT_TOKEN'); // simpan di .env
+        // Ambil token dari tabel pengaturan
+        $token = \App\Models\Pengaturan::first()?->token_telegram;
 
-        Http::get("https://api.telegram.org/bot{$botToken}/sendMessage", [
+        if (!$token) {
+            Log::error("Token Telegram tidak ditemukan di tbl_pengaturan.");
+            return;
+        }
+
+        Http::get("https://api.telegram.org/bot{$token}/sendMessage", [
             'chat_id' => $chatId,
             'text' => $message
         ]);
     }
+
 }
