@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Siswa;
+use App\Models\Guru;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -36,6 +37,23 @@ class TelegramWebhookController extends Controller
                 } else {
                     // Kirim pesan gagal
                     $this->sendTelegramMessage($chatId, "RFID tidak ditemukan. Periksa kembali nomor RFID yang anda masukkan.");
+                }
+            }
+
+            // Cek apakah pesan dimulai dengan 'guru '
+            if (preg_match('/^guru\s+(\d+)/i', $messageText, $matches)) {
+                $rfid = $matches[1];
+
+                // Cari guru berdasarkan RFID
+                $guru = Guru::where('rfid', $rfid)->first();
+
+                if ($guru) {
+                    $guru->telegram_chat_id = $chatId;
+                    $guru->save();
+
+                    $this->sendTelegramMessage($chatId, "Selamat anda berhasil terdaftar sebagai guru: {$guru->nama_guru}.");
+                } else {
+                    $this->sendTelegramMessage($chatId, "RFID tidak ditemukan. Periksa kembali nomor RFID anda.");
                 }
             }
         }
