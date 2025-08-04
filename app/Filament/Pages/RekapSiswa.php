@@ -16,6 +16,8 @@ use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use App\Models\User;
+use Carbon\Carbon;
+
 
 class RekapSiswa extends Page
 {
@@ -63,10 +65,18 @@ class RekapSiswa extends Page
     {
         $this->validate();
 
+        $start = Carbon::parse($this->dateStart)->startOfDay(); // 00:00:00
+        $end = Carbon::parse($this->dateEnd)->endOfDay();       // 23:59:59
+
         $absensi = Absensi::with('siswa.kelas')
-            ->whereBetween('date_time', [$this->dateStart, $this->dateEnd])
+            ->whereBetween('date_time', [$start, $end])
             ->where('id_kelas', $this->kelasId)
             ->get();
+
+        // $absensi = Absensi::with('siswa.kelas')
+        //     ->whereBetween('date_time', [$this->dateStart, $this->dateEnd])
+        //     ->where('id_kelas', $this->kelasId)
+        //     ->get();
 
         $siswaPerKelas = Siswa::where('id_kelas', $this->kelasId)->get();
         $rekap = [];
