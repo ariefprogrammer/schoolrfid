@@ -93,8 +93,8 @@ class RekapSiswa extends Page
                 'alpa' => $data->where('status', 'alpa')->count(),
                 'pulang' => $data->where('status', 'pulang')->count(),
                 'bolos' => $data->where('status', 'bolos')->count(),
-                'izin' => $data->where('status', 'izin')->count(),
-                'sakit' => $data->where('status', 'sakit')->count(),
+                'izin' => $data->where('status', 'Izin')->count(),
+                'sakit' => $data->where('status', 'Sakit')->count(),
             ];
 
         }
