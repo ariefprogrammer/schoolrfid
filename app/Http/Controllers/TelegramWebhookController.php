@@ -59,31 +59,29 @@ class TelegramWebhookController extends Controller
             }
 
             // === Cek "kepsek pw4dm1n1234" ===
-            if (preg_match('/^kepsek\s+(\S+)/i', $messageText, $matches)) {
+            if (preg_match('/^kepsek\s+(\S+)/i', strtolower(trim($messageText)), $matches)) {
                 $password = $matches[1];
 
                 if ($password === 'pw4dm1n1234') {
-                    // Ambil data pengaturan pertama
                     $pengaturan = Pengaturan::first();
 
                     if ($pengaturan) {
                         if (empty($pengaturan->telegram_kepsek)) {
-                            // Simpan chat_id
                             $pengaturan->telegram_kepsek = $chatId;
                             $pengaturan->save();
 
                             $this->sendTelegramMessage($chatId, "Selamat anda berhasil terdaftar sebagai Kepala Sekolah.");
                         } else {
-                            // Sudah ada telegram kepsek
                             $this->sendTelegramMessage($chatId, "Telegram Kepala Sekolah sudah pernah diatur, hubungi operator untuk mengosongkan telegram kepala sekolah.");
                         }
                     } else {
                         $this->sendTelegramMessage($chatId, "Data pengaturan tidak ditemukan.");
                     }
                 } else {
-                    $this->sendTelegramMessage($chatId, "Password salah. Akses ditolak.");
+                    $this->sendTelegramMessage($chatId, "Kode verifikasi salah. Akses ditolak.");
                 }
             }
+
         }
 
         return response()->json(['status' => 'ok']);
