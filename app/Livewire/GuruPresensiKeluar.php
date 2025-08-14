@@ -8,8 +8,11 @@ use App\Models\PresensiGuru;
 use Livewire\Component;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use App\Models\Pengaturan;
 
-class GuruPresensiKeluar extends Component // <-- NAMA KELAS BARU
+class GuruPresensiKeluar extends Component
 {
     public ?string $rfid = '';
     public ?Guru $guru = null;
@@ -243,6 +246,26 @@ class GuruPresensiKeluar extends Component // <-- NAMA KELAS BARU
                     'jam_out' => $now,
                     'status_out' => $statusOut,
                 ]);
+            }
+
+            // === Kirim Notifikasi Telegram Kepala Sekolah ===
+            $pengaturan = \App\Models\Pengaturan::first();
+            if ($pengaturan && $pengaturan->token_telegram && $pengaturan->telegram_kepsek) {
+                $text = "📢 *Presensi Keluar Guru*\n"
+                    . "Nama: *{$this->guru->nama_guru}*\n"
+                    . "Kelas: *{$firstClassName}*\n"
+                    . "Jam Keluar: " . $now->format('H:i') . "\n"
+                    . "Status: *{$statusOut}*";
+
+                try {
+                    \Http::post("https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage", [
+                        'chat_id' => $pengaturan->telegram_kepsek,
+                        'text' => $text,
+                        'parse_mode' => 'Markdown'
+                    ]);
+                } catch (\Exception $e) {
+                    \Log::error("Gagal kirim notifikasi Telegram: " . $e->getMessage());
+                }
             }
 
             $this->displayCustomNotification('Presensi Keluar Berhasil!', 'Anda telah berhasil presensi keluar untuk jadwal di kelas ' . $firstClassName . '.', 'success');

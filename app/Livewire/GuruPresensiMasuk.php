@@ -8,6 +8,9 @@ use App\Models\PresensiGuru;
 use Livewire\Component;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use App\Models\Pengaturan;
 
 class GuruPresensiMasuk extends Component
 {
@@ -249,6 +252,27 @@ class GuruPresensiMasuk extends Component
                     'jam_in' => $now,
                     'status_in' => $statusIn,
                 ]);
+            }
+
+            // fungsi mengirim notifikasi ke Telegram Kepala Sekolah
+            try {
+                $pengaturan = Pengaturan::first();
+                if ($pengaturan && $pengaturan->token_telegram && $pengaturan->telegram_kepsek) {
+                    $pesan = "📢 *Presensi Masuk Guru*\n"
+                        . "Nama: *{$this->guru->nama_guru}*\n"
+                        . "Kelas: *{$firstClassName}*\n"
+                        . "Waktu: " . $now->format('H:i:s') . "\n"
+                        . "Status: *" . ucfirst($statusIn) . "*";
+
+                    $url = "https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage"
+                        . "?chat_id={$pengaturan->telegram_kepsek}"
+                        . "&text=" . urlencode($pesan)
+                        . "&parse_mode=Markdown";
+
+                    file_get_contents($url);
+                }
+            } catch (\Exception $e) {
+                \Log::error('Gagal mengirim notifikasi Telegram: ' . $e->getMessage());
             }
 
             $this->displayCustomNotification('Presensi Masuk Berhasil!', 'Anda telah berhasil presensi masuk untuk jadwal di kelas ' . $firstClassName . '.', 'success');
