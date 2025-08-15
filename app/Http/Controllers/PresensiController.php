@@ -304,6 +304,9 @@ class PresensiController extends Controller
                 'keterangan' => null,
             ]);
 
+            // Kirim notifikasi ke Kepala Sekolah
+            $this->notificationKepsekTendik($tendik->nama, 'masuk', $status, $now);
+
             return redirect()->back()->with('success', 'Presensi masuk berhasil untuk ' . $tendik->nama . ' (Status: ' . $status . ')');
 
         } catch (\Exception $e) {
@@ -392,6 +395,9 @@ class PresensiController extends Controller
                 'keterangan' => null,
             ]);
 
+            // Panggil notifikasi Kepsek
+            $this->notificationKepsekTendik($tendik->nama, 'keluar', $status, $now);
+
             return redirect()->back()->with('success', 'Presensi keluar berhasil untuk ' . $tendik->nama . ' (Status: ' . $status . ')');
 
         } catch (\Exception $e) {
@@ -399,6 +405,40 @@ class PresensiController extends Controller
         }
     }
 
+    protected function notificationKepsekTendik($namaTendik, $jenis, $status, $waktu)
+    {
+        $pengaturan = \App\Models\Pengaturan::first();
+        $token = $pengaturan?->token_telegram; 
+        $chatId = $pengaturan?->telegram_kepsek; 
+
+        if (!$token || !$chatId) {
+            \Log::warning('Token Telegram atau Chat ID Kepala Sekolah tidak tersedia.');
+            return;
+        }
+
+        $formattedTime = Carbon::parse($waktu)->format('H:i');
+        $pesan = "📢 *Notifikasi Presensi Tendik*\n";
+        $pesan .= "Nama : {$namaTendik}\n";
+        $pesan .= "Jenis : {$jenis}\n";
+        $pesan .= "Waktu : {$formattedTime}\n";
+        $pesan .= "Status : {$status}";
+
+        \Log::info("Mengirim notifikasi Kepsek: \n" . $pesan);
+
+        try {
+            $response = Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                'chat_id' => $chatId,
+                'text' => $pesan,
+                'parse_mode' => 'Markdown'
+            ]);
+
+            if ($response->failed()) {
+                \Log::error("Gagal kirim notifikasi Kepsek: " . $response->body());
+            }
+        } catch (\Exception $e) {
+            \Log::error("Exception saat kirim notifikasi Kepsek: " . $e->getMessage());
+        }
+    }
 
 
     protected function notifikasiTelegram($rfid, $namaSiswa, $kelas, $waktu, $jenis, $status, $telepon_wali)
