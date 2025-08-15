@@ -248,25 +248,38 @@ class GuruPresensiKeluar extends Component
                 ]);
             }
 
-            // === Kirim Notifikasi Telegram Kepala Sekolah ===
-            $pengaturan = \App\Models\Pengaturan::first();
-            if ($pengaturan && $pengaturan->token_telegram && $pengaturan->telegram_kepsek) {
-                $text = "📢 *Presensi Keluar Guru*\n"
-                    . "Nama: *{$this->guru->nama_guru}*\n"
-                    . "Kelas: *{$firstClassName}*\n"
-                    . "Jam Keluar: " . $now->format('H:i') . "\n"
-                    . "Status: *{$statusOut}*";
+            // === Kirim Notifikasi Telegram Kepala Sekolah & Guru ===
+            try {
+                $pengaturan = \App\Models\Pengaturan::first();
+                if ($pengaturan && $pengaturan->token_telegram) {
+                    $pesan = "📢 *Presensi Keluar Guru*\n"
+                        . "Nama: *{$this->guru->nama_guru}*\n"
+                        . "Kelas: *{$firstClassName}*\n"
+                        . "Jam Keluar: " . $now->format('H:i:s') . "\n"
+                        . "Status: *" . ucfirst($statusOut) . "*";
 
-                try {
-                    \Http::post("https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage", [
-                        'chat_id' => $pengaturan->telegram_kepsek,
-                        'text' => $text,
-                        'parse_mode' => 'Markdown'
-                    ]);
-                } catch (\Exception $e) {
-                    \Log::error("Gagal kirim notifikasi Telegram: " . $e->getMessage());
+                    // Kirim ke Kepala Sekolah jika tersedia
+                    if (!empty($pengaturan->telegram_kepsek)) {
+                        $urlKepsek = "https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage"
+                            . "?chat_id={$pengaturan->telegram_kepsek}"
+                            . "&text=" . urlencode($pesan)
+                            . "&parse_mode=Markdown";
+                        @file_get_contents($urlKepsek);
+                    }
+
+                    // Kirim ke Guru yang melakukan presensi jika tersedia
+                    if (!empty($this->guru->telegram_chat_id)) {
+                        $urlGuru = "https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage"
+                            . "?chat_id={$this->guru->telegram_chat_id}"
+                            . "&text=" . urlencode($pesan)
+                            . "&parse_mode=Markdown";
+                        @file_get_contents($urlGuru);
+                    }
                 }
+            } catch (\Exception $e) {
+                \Log::error('Gagal mengirim notifikasi Telegram: ' . $e->getMessage());
             }
+
 
             $this->displayCustomNotification('Presensi Keluar Berhasil!', 'Anda telah berhasil presensi keluar untuk jadwal di kelas ' . $firstClassName . '.', 'success');
             

@@ -234,7 +234,6 @@ class GuruPresensiMasuk extends Component
             return;
         }
 
-
         // Lakukan update ke database
         try {
             $now = Carbon::now();
@@ -254,22 +253,33 @@ class GuruPresensiMasuk extends Component
                 ]);
             }
 
-            // fungsi mengirim notifikasi ke Telegram Kepala Sekolah
+            // fungsi mengirim notifikasi ke Telegram Kepala Sekolah & Guru
             try {
                 $pengaturan = Pengaturan::first();
-                if ($pengaturan && $pengaturan->token_telegram && $pengaturan->telegram_kepsek) {
+                if ($pengaturan && $pengaturan->token_telegram) {
                     $pesan = "📢 *Presensi Masuk Guru*\n"
                         . "Nama: *{$this->guru->nama_guru}*\n"
                         . "Kelas: *{$firstClassName}*\n"
                         . "Waktu: " . $now->format('H:i:s') . "\n"
                         . "Status: *" . ucfirst($statusIn) . "*";
 
-                    $url = "https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage"
-                        . "?chat_id={$pengaturan->telegram_kepsek}"
-                        . "&text=" . urlencode($pesan)
-                        . "&parse_mode=Markdown";
+                    // Kirim ke Kepala Sekolah jika chat_id tersedia
+                    if (!empty($pengaturan->telegram_kepsek)) {
+                        $urlKepsek = "https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage"
+                            . "?chat_id={$pengaturan->telegram_kepsek}"
+                            . "&text=" . urlencode($pesan)
+                            . "&parse_mode=Markdown";
+                        @file_get_contents($urlKepsek);
+                    }
 
-                    file_get_contents($url);
+                    // Kirim ke Guru yang presensi jika chat_id tersedia
+                    if (!empty($this->guru->telegram_chat_id)) {
+                        $urlGuru = "https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage"
+                            . "?chat_id={$this->guru->telegram_chat_id}"
+                            . "&text=" . urlencode($pesan)
+                            . "&parse_mode=Markdown";
+                        @file_get_contents($urlGuru);
+                    }
                 }
             } catch (\Exception $e) {
                 \Log::error('Gagal mengirim notifikasi Telegram: ' . $e->getMessage());
