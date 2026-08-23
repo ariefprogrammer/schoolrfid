@@ -280,6 +280,24 @@ class GuruPresensiKeluar extends Component
                 \Log::error('Gagal mengirim notifikasi Telegram: ' . $e->getMessage());
             }
 
+            try {
+                $pesanWa = "📢 Presensi Masuk Guru\n"
+                    . "Nama: {$this->guru->nama_guru}\n"
+                    . "Kelas: {$firstClassName}\n"
+                    . "Waktu: " . $now->format('H:i:s') . "\n"
+                    . "Status: " . ucfirst($statusIn);
+
+                if (!empty($this->guru->no_wa)) {
+                    app(FonnteService::class)->send($this->guru->no_wa, $pesanWa);
+                }
+
+                $pengaturan = Pengaturan::first();
+                if (!empty($pengaturan?->wa_kepsek)) {
+                    app(FonnteService::class)->send($pengaturan->wa_kepsek, $pesanWa);
+                }
+            } catch (\Exception $e) {
+                \Log::error('Gagal mengirim notifikasi WhatsApp: ' . $e->getMessage());
+            }
 
             $this->displayCustomNotification('Presensi Keluar Berhasil!', 'Anda telah berhasil presensi keluar untuk jadwal di kelas ' . $firstClassName . '.', 'success');
             

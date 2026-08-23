@@ -69,6 +69,16 @@ class AppSettings extends Page implements HasForms
                     ->minValue(0)
                     ->required()
                     ->helperText('Digunakan untuk perhitungan honor guru'),
+
+                TextInput::make('fonnte_token')
+                    ->label('Token Device')
+                    ->maxLength(255)
+                    ->placeholder('Token device dari dashboard Fonnte'),
+
+                TextInput::make('wa_kepsek')
+                    ->label('Nomor WA Kepala Sekolah (Opsional)')
+                    ->maxLength(255)
+                    ->placeholder('Contoh: 6281234567890'),
             ])
             ->statePath('data');
     }

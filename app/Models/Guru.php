@@ -20,6 +20,7 @@ class Guru extends Authenticatable // Ubah extends Model menjadi extends Authent
         'email',
         'password',
         'rfid',
+        'no_wa',
     ];
 
     protected $hidden = [

@@ -17,6 +17,7 @@ class Tendik extends Model
         'id_jabatan',
         'email',
         'rfid',
+        'no_wa',
     ];
 
     public function jabatan()

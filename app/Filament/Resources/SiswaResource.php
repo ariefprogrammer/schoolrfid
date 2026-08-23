@@ -83,6 +83,7 @@ class SiswaResource extends Resource
 
                 Forms\Components\TextInput::make('telepon_wali')
                     ->label('Telepon Wali')
+                    ->placeholder('Contoh: 6281234567890')
                     ->tel()
                     ->maxLength(255)
                     ->nullable(),

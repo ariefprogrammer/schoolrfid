@@ -15,6 +15,8 @@ class Pengaturan extends Model
         'nama_aplikasi',
         'token_telegram',
         'telegram_kepsek',
-        'upah_perjam'
+        'upah_perjam',
+        'fonnte_token', 
+        'wa_kepsek',
     ];
 }

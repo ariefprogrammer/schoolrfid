@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\FonnteService;
 use Illuminate\Http\Request;
 use App\Models\Siswa;
 use App\Models\Absensi;
@@ -105,6 +106,8 @@ class PresensiController extends Controller
                 $siswa->telepon_wali
             );
 
+            $this->notifikasiWhatsApp($siswa->nama_siswa, $siswa->kelas->nama_kelas ?? '-', $now, 'masuk', $status, $siswa->telepon_wali);
+
             return redirect()->back()->with('success', 'Presensi masuk berhasil untuk ' . $siswa->nama_siswa . ' (Status: ' . $status . ')');
 
         } catch (\Exception $e) {
@@ -207,6 +210,8 @@ class PresensiController extends Controller
                 $status,
                 $siswa->telepon_wali
             );
+
+            $this->notifikasiWhatsApp($siswa->nama_siswa, $siswa->kelas->nama_kelas ?? '-', $now, 'keluar', $status, $siswa->telepon_wali);
 
             return redirect()->back()->with('success', 'Presensi keluar berhasil untuk ' . $siswa->nama_siswa . ' (Status: ' . $status . ')');
 
@@ -475,5 +480,22 @@ class PresensiController extends Controller
         } catch (\Exception $e) {
             \Log::error("Exception saat kirim Telegram: " . $e->getMessage());
         }
+    }
+
+    protected function notifikasiWhatsApp($namaSiswa, $kelas, $waktu, $jenis, $status, $teleponWali)
+    {
+        if (empty($teleponWali)) {
+            \Log::info('Nomor WA wali tidak tersedia, notifikasi WA dilewati.');
+            return;
+        }
+
+        $formattedTime = Carbon::parse($waktu)->format('H:i');
+        $pesan = "📢 Notifikasi Presensi {$jenis}\n"
+            . "Nama: {$namaSiswa}\n"
+            . "Kelas: {$kelas}\n"
+            . "Waktu {$jenis}: {$formattedTime}\n"
+            . "Status: {$status}";
+
+        app(FonnteService::class)->send($teleponWali, $pesan);
     }
 }
