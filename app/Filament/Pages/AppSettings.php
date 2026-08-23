@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Models\Pengaturan;
+use App\Services\FonnteService;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -33,14 +34,86 @@ class AppSettings extends Page implements HasForms
     public ?array $data = [];
     public ?Pengaturan $settings = null;
 
+    // settings fonnte
+    public ?string $qrImage = null;
+    public bool $showQrModal = false;
+    public ?string $deviceStatus = null;
+    public ?string $deviceNumber = null;
+
     public function mount(): void
     {
         $this->settings = Pengaturan::first();
         if (!$this->settings) {
-            $this->settings = Pengaturan::create(); // Buat default jika belum ada
+            $this->settings = Pengaturan::create();
+        }
+        $this->form->fill($this->settings->toArray());
+        $this->refreshDeviceStatus();
+    }
+
+    public function refreshDeviceStatus(): void
+    {
+        if (empty($this->settings->fonnte_token)) {
+            $this->deviceStatus = null;
+            return;
         }
 
-        $this->form->fill($this->settings->toArray());
+        $status = app(FonnteService::class)->getDeviceStatus($this->settings->fonnte_token);
+        $this->deviceStatus = $status['connected'] ? 'connect' : 'disconnect';
+        $this->deviceNumber = $status['device'];
+    }
+
+    public function connectWhatsApp(): void
+    {
+        if (empty($this->settings->fonnte_token)) {
+            Notification::make()
+                ->title('Isi Token Device Fonnte dahulu, lalu simpan pengaturan.')
+                ->warning()->send();
+            return;
+        }
+
+        $result = app(FonnteService::class)->getQr($this->settings->fonnte_token);
+
+        if (!$result['success'] || empty($result['qr'])) {
+            $this->refreshDeviceStatus();
+            if ($this->deviceStatus === 'connect') {
+                Notification::make()->title('WhatsApp sudah terhubung.')->success()->send();
+            } else {
+                Notification::make()
+                    ->title('Gagal mengambil QR code.')
+                    ->body($result['message'] ?? 'Cek kembali token device kamu.')
+                    ->danger()->send();
+            }
+            return;
+        }
+
+        $this->qrImage = $result['qr'];
+        $this->showQrModal = true;
+    }
+
+    public function pollConnectionStatus(): void
+    {
+        if (!$this->showQrModal) return;
+
+        $this->refreshDeviceStatus();
+
+        if ($this->deviceStatus === 'connect') {
+            $this->showQrModal = false;
+            $this->qrImage = null;
+            Notification::make()->title('WhatsApp berhasil terhubung! 🎉')->success()->send();
+        }
+    }
+
+    public function disconnectWhatsApp(): void
+    {
+        app(FonnteService::class)->disconnect($this->settings->fonnte_token);
+        $this->refreshDeviceStatus();
+        Notification::make()->title('WhatsApp diputus.')->success()->send();
+    }
+
+    public function closeQrModal(): void
+    {
+        $this->showQrModal = false;
+        $this->qrImage = null;
     }
 
     public function form(Form $form): Form
