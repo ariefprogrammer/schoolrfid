@@ -292,13 +292,13 @@ class GuruPresensiMasuk extends Component
                     . "Waktu: " . $now->format('H:i:s') . "\n"
                     . "Status: " . ucfirst($statusIn);
 
-                if (!empty($this->guru->no_wa)) {
-                    app(FonnteService::class)->send($this->guru->no_wa, $pesanWa);
+                if (!empty($this->guru->no_wa)) {                    
+                    SendWhatsAppNotification::dispatch($this->guru->no_wa, $pesanWa);
                 }
 
                 $pengaturan = Pengaturan::first();
                 if (!empty($pengaturan?->wa_kepsek)) {
-                    app(FonnteService::class)->send($pengaturan->wa_kepsek, $pesanWa);
+                    SendWhatsAppNotification::dispatch($pengaturan->wa_kepsek, $pesan);
                 }
             } catch (\Exception $e) {
                 \Log::error('Gagal mengirim notifikasi WhatsApp: ' . $e->getMessage());

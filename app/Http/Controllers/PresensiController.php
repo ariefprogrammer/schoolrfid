@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\FonnteService;
+use App\Jobs\SendWhatsAppNotification;
 use Illuminate\Http\Request;
 use App\Models\Siswa;
 use App\Models\Absensi;
@@ -443,6 +443,18 @@ class PresensiController extends Controller
         } catch (\Exception $e) {
             \Log::error("Exception saat kirim notifikasi Kepsek: " . $e->getMessage());
         }
+
+        // Kirim WA ke Kepala Sekolah
+        if (!empty($pengaturan?->wa_kepsek)) {
+            $formattedTime = Carbon::parse($waktu)->format('H:i');
+            $pesan = "📢 Notifikasi Presensi Tendik\n"
+                . "Nama: {$namaTendik}\n"
+                . "Jenis: {$jenis}\n"
+                . "Waktu: {$formattedTime}\n"
+                . "Status: {$status}";
+
+            SendWhatsAppNotification::dispatch($pengaturan->wa_kepsek, $pesan);
+        }
     }
 
 
@@ -496,6 +508,6 @@ class PresensiController extends Controller
             . "Waktu {$jenis}: {$formattedTime}\n"
             . "Status: {$status}";
 
-        app(FonnteService::class)->send($teleponWali, $pesan);
+        SendWhatsAppNotification::dispatch($teleponWali, $pesan);
     }
 }
