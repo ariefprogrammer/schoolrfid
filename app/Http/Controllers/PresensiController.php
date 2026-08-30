@@ -453,7 +453,8 @@ class PresensiController extends Controller
                 . "Waktu: {$formattedTime}\n"
                 . "Status: {$status}";
 
-            SendWhatsAppNotification::dispatch($pengaturan->wa_kepsek, $pesan);
+            SendWhatsAppNotification::dispatch($pengaturan->wa_kepsek, $pesan)
+                ->delay(now()->addSeconds(rand(3, 20)));
         }
     }
 
@@ -508,6 +509,7 @@ class PresensiController extends Controller
             . "Waktu {$jenis}: {$formattedTime}\n"
             . "Status: {$status}";
 
-        SendWhatsAppNotification::dispatch($teleponWali, $pesan);
+        SendWhatsAppNotification::dispatch($teleponWali, $pesan)
+            ->delay(now()->addSeconds(rand(3, 20)));
     }
 }

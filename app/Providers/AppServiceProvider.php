@@ -15,5 +15,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Carbon::setLocale('id');
+        RateLimiter::for('whatsapp', function () {
+            return Limit::perMinute(15);
+        });
     }
 }
