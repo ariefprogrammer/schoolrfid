@@ -11,9 +11,10 @@ class Jam extends Model
 
     protected $table = 'tbl_jam'; // Tentukan nama tabel yang sesuai
 
-    protected $fillable = [
-        'ke',
-        'jam_mulai',
-        'jam_selesai',
-    ];
+    protected $fillable = ['id_jam_profil', 'ke', 'jam_mulai', 'jam_selesai'];
+
+    public function profil()
+    {
+        return $this->belongsTo(JamProfil::class, 'id_jam_profil');
+    }
 }

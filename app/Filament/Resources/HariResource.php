@@ -22,7 +22,7 @@ class HariResource extends Resource
     protected static ?string $navigationGroup = 'Data Guru'; // Bisa dimasukkan ke grup Pengaturan
     protected static ?string $navigationLabel = 'Hari';
     protected static ?string $pluralLabel = 'Hari';
-    protected static ?int $navigationSort = 11; // Urutkan setelah Pengaturan Aplikasi (jika Pengaturan Aplikasi 10)
+    protected static ?int $navigationSort = 12; // Urutkan setelah Pengaturan Aplikasi (jika Pengaturan Aplikasi 10)
 
     public static function form(Form $form): Form
     {
@@ -49,6 +49,11 @@ class HariResource extends Resource
                     ->unique(ignoreRecord: true) // Pastikan urutan unik
                     ->minValue(1) // Urutan minimal 1
                     ->helperText('Contoh: 1 untuk Senin, 2 untuk Selasa, dst.'),
+                Forms\Components\Select::make('id_jam_profil')
+                    ->label('Pola jam')
+                    ->relationship('profilJam', 'nama')
+                    ->placeholder('Ikuti default')
+                    ->nullable(),
             ]);
     }
 
