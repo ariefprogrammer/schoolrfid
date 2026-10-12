@@ -47,6 +47,8 @@ class KelolaPresensiGuruResource extends Resource
                     'terlambat' => 'Terlambat',
                     'unassign' => 'Alpa (Unassign)',
                 ]),
+            Forms\Components\TimePicker::make('jam_out')
+                ->label('Jam Pulang'),
             Forms\Components\Select::make('status_out')
                 ->label('Status Pulang')
                 ->options([
@@ -72,6 +74,7 @@ class KelolaPresensiGuruResource extends Resource
                 Tables\Columns\TextColumn::make('status_in')
                     ->label('Status Masuk')
                     ->badge(),
+                Tables\Columns\TextColumn::make('jam_out')->label('Jam Pulang'),
                 Tables\Columns\TextColumn::make('status_out')
                     ->label('Status Pulang')
                     ->badge(),
