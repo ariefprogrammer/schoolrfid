@@ -38,6 +38,12 @@ class MapelResource extends Resource
                     ->label('Nama Mata Pelajaran')
                     ->required()
                     ->maxLength(255),
+                Forms\Components\Toggle::make('boleh_gabung')
+                    ->label('Boleh digabung antar kelas')
+                    ->helperText('Satu guru mengajar beberapa kelas sekaligus, mis. olahraga.'),
+                Forms\Components\Toggle::make('boleh_paralel')
+                    ->label('Boleh paralel dalam satu kelas')
+                    ->helperText('Satu kelas dipecah ke beberapa guru, mis. agama.'),
             ]);
     }
 

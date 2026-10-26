@@ -52,7 +52,7 @@
                                                     <span class="fw-normal ms-2">Jam {{ $jadwal->jam->ke ?? '-' }}</span>
                                                 </h5>
                                                 <p class="mb-0">
-                                                    Kelas: {{ ($jadwal->kelas->kelas ?? '') . ' ' . ($jadwal->kelas->nama_kelas ?? '-') }}
+                                                    Kelas: {{ $jadwal->namaKelasTampil() }}
                                                 </p>
                                                 <p class="mb-1">
                                                     Waktu: {{ \Carbon\Carbon::parse($jadwal->jam->jam_mulai)->format('H:i') ?? '-' }} - {{ \Carbon\Carbon::parse($jadwal->jam->jam_selesai)->format('H:i') ?? '-' }}

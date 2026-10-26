@@ -13,7 +13,7 @@
                         </div>
                         <div class="card-body p-0">
                             {{-- Filter ini untuk memastikan ada presensi yang terisi untuk kelas ini --}}
-                            @if (!empty($jadwalDataPerKelas[$kelas->id]) && collect($jadwalDataPerKelas[$kelas->id])->filter(fn($j) => $j['id_mapel'] || $j['id_guru'])->isNotEmpty())
+                            @if (!empty($jadwalDataPerKelas[$kelas->id]) && collect($jadwalDataPerKelas[$kelas->id])->filter(fn ($list) => count($list) > 0)->isNotEmpty())
                                 <div class="table-responsive">
                                     <table class="table table-bordered table-hover mb-0">
                                         <thead class="table-light">
@@ -27,29 +27,40 @@
                                         <tbody>
                                             @foreach ($jams as $jam)
                                                 @php
-                                                    $jadwalEntry = $jadwalDataPerKelas[$kelas->id][$jam->id] ?? null;
-                                                    // Ambil kode mapel dan nama guru dari entry jadwalDataPerKelas yang sudah diisi
-                                                    $kodeMapel = $jadwalEntry && $jadwalEntry['id_mapel'] ? $mapels->firstWhere('id', $jadwalEntry['id_mapel'])->kode : '-';
-                                                    $guruName = $jadwalEntry && $jadwalEntry['id_guru'] ? $gurus->firstWhere('id', $jadwalEntry['id_guru'])->nama_guru : '-';
-                                                    $presensiGuruId = $jadwalEntry['presensi_guru_id'] ?? null; // Ambil ID presensi guru
+                                                    $entries = $jadwalDataPerKelas[$kelas->id][$jam->id] ?? [];
                                                 @endphp
-                                                <tr @if($kodeMapel == '-' && $guruName == '-') class="table-light" @endif>
+                                                <tr @if(empty($entries)) class="table-light" @endif>
                                                     <td class="text-center">{{ \Carbon\Carbon::parse($jam->jam_mulai)->format('H:i') }} - {{ \Carbon\Carbon::parse($jam->jam_selesai)->format('H:i') }}</td>
-                                                    <td class="text-center">{{ $kodeMapel }}</td>
-                                                    <td class="text-center">{{ $guruName }}</td>
                                                     <td class="text-center">
-                                                        {{-- Hanya tampilkan tombol jika ada presensiGuruId --}}
-                                                        @if ($presensiGuruId)
-                                                            <button
-                                                                type="button"
-                                                                class="btn btn-sm btn-info"
-                                                                wire:click="showDetails({{ $presensiGuruId }})"
-                                                            >
-                                                                Details
-                                                            </button>
-                                                        @else
+                                                        @forelse ($entries as $entry)
+                                                            <div>
+                                                                {{ $mapels->firstWhere('id', $entry['id_mapel'])?->kode ?? '-' }}
+                                                                @if (!empty($entry['nama_kelompok']))
+                                                                    <span class="badge bg-secondary">{{ $entry['nama_kelompok'] }}</span>
+                                                                @endif
+                                                            </div>
+                                                        @empty
                                                             -
-                                                        @endif
+                                                        @endforelse
+                                                    </td>
+                                                    <td class="text-center">
+                                                        @forelse ($entries as $entry)
+                                                            <div>{{ $gurus->firstWhere('id', $entry['id_guru'])?->nama_guru ?? '-' }}</div>
+                                                        @empty
+                                                            -
+                                                        @endforelse
+                                                    </td>
+                                                    <td class="text-center">
+                                                        @forelse ($entries as $entry)
+                                                            <div class="mb-1">
+                                                                <button type="button" class="btn btn-sm btn-info"
+                                                                    wire:click="showDetails({{ $entry['presensi_guru_id'] }})">
+                                                                    Details
+                                                                </button>
+                                                            </div>
+                                                        @empty
+                                                            -
+                                                        @endforelse
                                                     </td>
                                                 </tr>
                                             @endforeach

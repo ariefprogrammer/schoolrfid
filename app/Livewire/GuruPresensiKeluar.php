@@ -101,7 +101,8 @@ class GuruPresensiKeluar extends Component
 
         // --- PENTING: FILTER UNTUK PRESENSI KELUAR ---
         // Ambil jadwal dari tbl_presensi_guru yang sudah jam_in tapi belum jam_out
-        $this->jadwalHariIni = PresensiGuru::with(['mapel', 'jam', 'kelas'])
+        // UBAH 1: tambah eager load 'jadwal.kelases' (dipakai idKelasSesi() dan namaKelasTampil())
+        $this->jadwalHariIni = PresensiGuru::with(['mapel', 'jam', 'kelas', 'jadwal.kelases'])
                                         ->where('id_guru', $this->guru->id)
                                         ->where('id_hari', $hariIni->id)
                                         ->where('periode_awal', $startOfWeek)
@@ -148,9 +149,10 @@ class GuruPresensiKeluar extends Component
              return;
         }
 
-        $firstClassId = $selectedSchedulesModels->first()->id_kelas;
-        $firstClassName = ($selectedSchedulesModels->first()->kelas->kelas ?? '') . ' ' . ($selectedSchedulesModels->first()->kelas->nama_kelas ?? '-');
-        $allSameClass = $selectedSchedulesModels->every(fn($schedule) => $schedule->id_kelas === $firstClassId);
+        // UBAH 2: "kelas sama" kini berarti himpunan kelas sesi identik (mendukung sesi gabungan)
+        $firstClassKey = $selectedSchedulesModels->first()->idKelasSesi();
+        $firstClassName = $selectedSchedulesModels->first()->namaKelasTampil();
+        $allSameClass = $selectedSchedulesModels->every(fn ($schedule) => $schedule->idKelasSesi() === $firstClassKey);
 
         if (!$allSameClass) {
             $this->selectedSchedules = [];
@@ -218,7 +220,8 @@ class GuruPresensiKeluar extends Component
                                              ->sortBy(fn($schedule) => $schedule->jam->ke);
         
         // Re-validasi kelas sama dan jam berurutan
-        if ($sortedSelected->isEmpty() || !$sortedSelected->every(fn($s) => $s->id_kelas === $sortedSelected->first()->id_kelas) || !$this->isSelectionSequential($sortedSelected)) {
+        // UBAH 3a: bandingkan himpunan kelas sesi, bukan id_kelas
+        if ($sortedSelected->isEmpty() || !$sortedSelected->every(fn($s) => $s->idKelasSesi() === $sortedSelected->first()->idKelasSesi()) || !$this->isSelectionSequential($sortedSelected)) {
             $this->displayCustomNotification('Gagal Presensi.', 'Pilihan jadwal tidak valid atau tidak berurutan/sama kelas.', 'danger');
             $this->selectedSchedules = [];
             return;
@@ -234,7 +237,8 @@ class GuruPresensiKeluar extends Component
 
 
         $firstSelectedSchedule = $sortedSelected->first();
-        $firstClassName = ($firstSelectedSchedule->kelas->kelas ?? '') . ' ' . ($firstSelectedSchedule->kelas->nama_kelas ?? '-');
+        // UBAH 3b: nama kelas untuk notifikasi, mis. "X A + X B" untuk sesi gabungan
+        $firstClassName = $firstSelectedSchedule->namaKelasTampil();
 
         try {
             $now = Carbon::now();

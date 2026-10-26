@@ -2,33 +2,33 @@
 
 namespace App\Filament\Pages\Jadwal;
 
-use App\Models\Hari;
-use App\Models\Jam;
 use App\Models\Guru;
-use App\Models\Mapel;
-use App\Models\Kelas;
+use App\Models\Hari;
 use App\Models\Jadwal;
+use App\Models\Kelas;
+use App\Models\Mapel;
+use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
-use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class ScheduleMatrix extends Page implements HasForms
 {
+    use InteractsWithForms;
 
     public static function canAccess(): bool
     {
         // Hanya user dengan role 'admin' yang bisa mengakses halaman ini
         return auth()->user()->role === 'admin';
     }
-    
-    use InteractsWithForms;
 
     protected static ?string $navigationIcon = 'heroicon-o-table-cells';
     protected static ?string $navigationGroup = 'Data Guru';
@@ -36,7 +36,7 @@ class ScheduleMatrix extends Page implements HasForms
     protected static ?string $title = 'Matriks Jadwal Pelajaran';
     protected static string $view = 'filament.pages.jadwal.schedule-matrix';
     protected static ?int $navigationSort = 15;
-    
+
     public ?array $data = [];
 
     public Collection $haris;
@@ -44,10 +44,6 @@ class ScheduleMatrix extends Page implements HasForms
     public Collection $gurus;
     public Collection $mapels;
     public Collection $kelases;
-
-    // Ubah ini menjadi array asosiatif untuk menyimpan jadwal per kelas
-    // Format: ['kelas_id' => ['jam_id' => ['id_guru' => ..., 'id_mapel' => ...]]]
-    public array $jadwalDataPerKelas = []; 
 
     public function mount(): void
     {
@@ -58,35 +54,31 @@ class ScheduleMatrix extends Page implements HasForms
         $this->kelases = Kelas::all();
 
         $defaultHariId = $this->haris->first()?->id;
-        // Atur default selectedKelasId ke 'all' untuk menampilkan semua kelas secara default
-        $defaultKelasId = 'all'; 
 
         $this->data = [
             'selectedHariId' => $defaultHariId,
-            'selectedKelasId' => $defaultKelasId,
+            'selectedKelasId' => 'all',
         ];
 
         $this->form->fill($this->data);
 
-        if ($defaultHariId) { // Hanya perlu hari, karena kelas bisa 'all'
+        if ($defaultHariId) {
             $this->loadSchedule();
-        } else {
-            if ($this->haris->isEmpty()) {
-                Notification::make()
-                    ->title('Data master Hari belum lengkap.')
-                    ->body('Mohon lengkapi data Hari terlebih dahulu.')
-                    ->warning()
-                    ->send();
-            }
-            $this->jadwalDataPerKelas = [];
+        } elseif ($this->haris->isEmpty()) {
+            Notification::make()
+                ->title('Data master Hari belum lengkap.')
+                ->body('Mohon lengkapi data Hari terlebih dahulu.')
+                ->warning()
+                ->send();
         }
     }
 
     public function form(Form $form): Form
     {
-        // Siapkan opsi kelas, tambahkan "Semua Kelas" di awal
-        $kelasOptions = $this->kelases->mapWithKeys(fn ($kelas) => [$kelas->id => $kelas->kelas . ' ' . $kelas->nama_kelas])->toArray();
-        $kelasOptions = ['all' => 'Semua Kelas'] + $kelasOptions; // Tambahkan di awal
+        $kelasOptions = $this->kelases
+            ->mapWithKeys(fn ($kelas) => [$kelas->id => $kelas->kelas . ' ' . $kelas->nama_kelas])
+            ->toArray();
+        $kelasOptions = ['all' => 'Semua Kelas'] + $kelasOptions;
 
         return $form
             ->schema([
@@ -99,7 +91,7 @@ class ScheduleMatrix extends Page implements HasForms
                             ->live(),
                         Forms\Components\Select::make('selectedKelasId')
                             ->label('Kelas')
-                            ->options($kelasOptions) // Gunakan opsi kelas yang sudah dimodifikasi
+                            ->options($kelasOptions)
                             ->required()
                             ->live(),
                     ])
@@ -108,68 +100,29 @@ class ScheduleMatrix extends Page implements HasForms
             ->statePath('data');
     }
 
-    /**
-     * Livewire watcher method: Dipanggil saat $this->data['selectedHariId'] berubah.
-     */
     public function updatedDataSelectedHariId(): void
     {
         $this->loadSchedule();
     }
 
-    /**
-     * Livewire watcher method: Dipanggil saat $this->data['selectedKelasId'] berubah.
-     */
     public function updatedDataSelectedKelasId(): void
     {
         $this->loadSchedule();
     }
 
+    /**
+     * Memuat pola jam untuk hari terpilih. Data jadwal sendiri dibangun
+     * setiap render lewat getViewData() sehingga selalu sesuai isi database.
+     */
     public function loadSchedule(): void
     {
         $this->validate([
             'data.selectedHariId' => 'required|exists:tbl_hari,id',
-            'data.selectedKelasId' => 'required', // Tidak lagi exists karena ada 'all'
+            'data.selectedKelasId' => 'required',
         ]);
 
-        $hariId = $this->data['selectedHariId'];
-        $kelasId = $this->data['selectedKelasId'];
-        $this->jams = Hari::findOrFail($hariId)->jamPelajaran();
+        $this->jams = Hari::findOrFail($this->data['selectedHariId'])->jamPelajaran();
 
-        $query = Jadwal::query()
-            ->where('id_hari', $hariId);
-
-        $targetKelases = collect();
-        if ($kelasId === 'all') {
-            $targetKelases = $this->kelases; // Ambil semua kelas
-        } else {
-            $targetKelases = $this->kelases->where('id', $kelasId); // Ambil kelas yang dipilih saja
-            $query->where('id_kelas', $kelasId);
-        }
-
-        $existingJadwal = $query->get();
-
-        $this->jadwalDataPerKelas = [];
-
-        foreach ($targetKelases as $kelas) {
-            $this->jadwalDataPerKelas[$kelas->id] = [];
-            $kelasJadwal = $existingJadwal->where('id_kelas', $kelas->id)->keyBy('id_jam');
-
-            foreach ($this->jams as $jam) {
-                $this->jadwalDataPerKelas[$kelas->id][$jam->id] = [
-                    'id_guru' => null,
-                    'id_mapel' => null,
-                    'jadwal_id' => null,
-                ];
-
-                if ($kelasJadwal->has($jam->id)) {
-                    $jadwal = $kelasJadwal->get($jam->id);
-                    $this->jadwalDataPerKelas[$kelas->id][$jam->id]['id_guru'] = $jadwal->id_guru;
-                    $this->jadwalDataPerKelas[$kelas->id][$jam->id]['id_mapel'] = $jadwal->id_mapel;
-                    $this->jadwalDataPerKelas[$kelas->id][$jam->id]['jadwal_id'] = $jadwal->id;
-                }
-            }
-        }
-        
         Notification::make()
             ->title('Jadwal berhasil dimuat.')
             ->success()
@@ -177,198 +130,343 @@ class ScheduleMatrix extends Page implements HasForms
     }
 
     /**
-     * Dipanggil dari view saat guru/mapel pada satu sel (kelas x jam) diubah.
+     * Data untuk view: $matrix[kelas_id][jam_id] = list sesi (Jadwal) pada sel tersebut.
      */
-    public function updateJadwal(int $kelasId, int $jamId, string $type, ?int $value = null): void
+    protected function getViewData(): array
     {
-        // 1) Mode "Semua Kelas" hanya untuk melihat, bukan mengedit
-        if (($this->data['selectedKelasId'] ?? null) === 'all') {
-            Notification::make()
-                ->title('Tidak dapat mengedit jadwal saat mode "Semua Kelas".')
-                ->body('Pilih kelas spesifik untuk melakukan perubahan jadwal.')
-                ->warning()
-                ->send();
-            return;
-        }
-
-        $hariId = $this->data['selectedHariId'] ?? null;
-
-        if (! $hariId || ! $kelasId) {
-            Notification::make()
-                ->title('Pilih Hari dan Kelas terlebih dahulu.')
-                ->warning()
-                ->send();
-            return;
-        }
-
-        // 2) Validasi input. Method Livewire bisa dipanggil dengan argumen sembarang dari browser.
-        if (! in_array($type, ['id_guru', 'id_mapel'], true)) {
-            Notification::make()->title('Jenis data tidak valid.')->danger()->send();
-            return;
-        }
-
-        // Jam harus milik pola jam hari yang sedang dipilih (Reguler/Jumat/dll)
-        if (! $this->jams->contains('id', $jamId)) {
-            Notification::make()
-                ->title('Jam tidak valid untuk hari ini.')
-                ->body('Muat ulang halaman lalu coba lagi.')
-                ->danger()
-                ->send();
-            return;
-        }
-
-        // Kelas harus yang sedang ditampilkan
-        if (! array_key_exists($kelasId, $this->jadwalDataPerKelas)) {
-            Notification::make()->title('Kelas tidak valid.')->danger()->send();
-            return;
-        }
-
-        // 3) Pastikan struktur data sel ada, lalu isi nilai baru
-        $this->jadwalDataPerKelas[$kelasId][$jamId] = array_merge(
-            [
-                'id_guru' => null,
-                'id_mapel' => null,
-                'jadwal_id' => null,
-            ],
-            $this->jadwalDataPerKelas[$kelasId][$jamId] ?? []
-        );
-
-        $this->jadwalDataPerKelas[$kelasId][$jamId][$type] = $value;
-
-        $mapelId = $this->jadwalDataPerKelas[$kelasId][$jamId]['id_mapel'];
-        $guruId  = $this->jadwalDataPerKelas[$kelasId][$jamId]['id_guru'];
-
-        // 4) Keduanya kosong -> hapus jadwal (kalau ada)
-        if (is_null($mapelId) && is_null($guruId)) {
-            $deleted = Jadwal::where('id_hari', $hariId)
-                ->where('id_jam', $jamId)
-                ->where('id_kelas', $kelasId)
-                ->delete();
-
-            $this->jadwalDataPerKelas[$kelasId][$jamId]['jadwal_id'] = null;
-
-            if ($deleted) {
-                Notification::make()->title('Jadwal dikosongkan.')->success()->send();
-            } else {
-                Notification::make()->title('Jadwal sudah kosong.')->info()->send();
-            }
-            return;
-        }
-
-        // 5) Salah satu masih kosong -> minta dilengkapi, belum disimpan
-        if (is_null($mapelId)) {
-            Notification::make()
-                ->title('Lengkapi Jadwal')
-                ->body('Selanjutnya silahkan pilih mata pelajaran.')
-                ->warning()
-                ->send();
-            return;
-        }
-
-        if (is_null($guruId)) {
-            Notification::make()
-                ->title('Lengkapi Jadwal')
-                ->body('Selanjutnya silahkan pilih guru.')
-                ->warning()
-                ->send();
-            return;
-        }
-
-        // 6) Simpan (update atau buat baru)
-        try {
-            $record = Jadwal::updateOrCreate(
-                [
-                    'id_hari'  => $hariId,
-                    'id_jam'   => $jamId,
-                    'id_kelas' => $kelasId,
-                ],
-                [
-                    'id_mapel' => $mapelId,
-                    'id_guru'  => $guruId,
-                ]
-            );
-
-            $this->jadwalDataPerKelas[$kelasId][$jamId]['jadwal_id'] = $record->id;
-
-            Notification::make()
-                ->title($record->wasRecentlyCreated
-                    ? 'Jadwal berhasil ditambahkan.'
-                    : 'Jadwal berhasil diperbarui.')
-                ->success()
-                ->send();
-        } catch (\Illuminate\Database\QueryException $e) {
-            // Simpan gagal -> kembalikan tampilan sel ke kondisi di database
-            $this->restoreCell($hariId, $kelasId, $jamId);
-
-            $errorMessage = $e->getMessage();
-            Log::error('Jadwal QueryException', [
-                'code'    => $e->getCode(),
-                'message' => $errorMessage,
-            ]);
-
-            if ((string) $e->getCode() === '23000') {
-                if (str_contains($errorMessage, 'jadwal_unique_per_guru_per_jam')) {
-                    Notification::make()
-                        ->title('Gagal menyimpan jadwal: Guru sudah mengajar.')
-                        ->body('Guru ini sudah memiliki jadwal di kelas lain pada jam dan hari yang sama.')
-                        ->danger()
-                        ->send();
-                } elseif (str_contains($errorMessage, 'jadwal_unique_per_kelas_per_jam')) {
-                    Notification::make()
-                        ->title('Gagal menyimpan jadwal: Kelas sudah ada pelajaran.')
-                        ->body('Kelas ini sudah memiliki jadwal pelajaran lain pada jam dan hari yang sama.')
-                        ->danger()
-                        ->send();
-                } else {
-                    Notification::make()
-                        ->title('Gagal menyimpan jadwal: Konflik data tidak teridentifikasi.')
-                        ->body('Terdapat duplikasi data yang tidak diizinkan. Mohon cek log sistem untuk detail.')
-                        ->danger()
-                        ->send();
-                }
-            } else {
-                // Jangan tampilkan pesan SQL mentah ke pengguna, cukup di log
-                Notification::make()
-                    ->title('Terjadi kesalahan database yang tidak terduga.')
-                    ->body('Mohon cek log sistem untuk detail.')
-                    ->danger()
-                    ->send();
-            }
-        } catch (\Throwable $e) {
-            $this->restoreCell($hariId, $kelasId, $jamId);
-            Log::error('Jadwal error: ' . $e->getMessage());
-
-            Notification::make()
-                ->title('Terjadi kesalahan.')
-                ->body('Mohon cek log sistem untuk detail.')
-                ->danger()
-                ->send();
-        }
+        return ['matrix' => $this->buildMatrix()];
     }
 
-    /**
-     * Kembalikan isi satu sel ke kondisi di database (dipakai saat simpan gagal).
-     */
-    protected function restoreCell(int $hariId, int $kelasId, int $jamId): void
+    protected function buildMatrix(): array
     {
-        $jadwal = Jadwal::where('id_hari', $hariId)
-            ->where('id_jam', $jamId)
-            ->where('id_kelas', $kelasId)
-            ->first();
+        $hariId = $this->data['selectedHariId'] ?? null;
+        $kelasId = $this->data['selectedKelasId'] ?? null;
 
-        $this->jadwalDataPerKelas[$kelasId][$jamId] = [
-            'id_guru'   => $jadwal?->id_guru,
-            'id_mapel'  => $jadwal?->id_mapel,
-            'jadwal_id' => $jadwal?->id,
+        if (! $hariId || ! $kelasId || $this->jams->isEmpty()) {
+            return [];
+        }
+
+        $query = Jadwal::query()
+            ->with(['mapel', 'guru', 'kelases'])
+            ->where('id_hari', $hariId)
+            ->whereIn('id_jam', $this->jams->pluck('id'));
+
+        if ($kelasId !== 'all') {
+            $query->whereHas('kelases', fn ($q) => $q->where('tbl_kelas.id', $kelasId));
+        }
+
+        $matrix = [];
+        foreach ($query->orderBy('id')->get() as $jadwal) {
+            foreach ($jadwal->kelases as $kelas) {
+                $matrix[$kelas->id][$jadwal->id_jam][] = $jadwal;
+            }
+        }
+
+        return $matrix;
+    }
+
+    // ------------------------------------------------------------------
+    // Actions (modal) — dipanggil dari view: mountAction('nama', {argumen})
+    // ------------------------------------------------------------------
+
+    public function tambahSesiAction(): Action
+    {
+        return Action::make('tambahSesi')
+            ->label('Tambah sesi')
+            ->modalHeading('Tambah sesi mengajar')
+            ->form(fn () => $this->sesiFormSchema())
+            ->action(function (array $data, array $arguments, Action $action): void {
+                $this->simpanSesi($data, (int) ($arguments['jam'] ?? 0), null, $action);
+            });
+    }
+
+    public function ubahSesiAction(): Action
+    {
+        return Action::make('ubahSesi')
+            ->label('Ubah')
+            ->modalHeading('Ubah sesi mengajar')
+            ->fillForm(function (array $arguments): array {
+                $jadwal = $this->cariSesi((int) ($arguments['jadwal'] ?? 0));
+
+                if (! $jadwal) {
+                    return [];
+                }
+
+                $anchor = $this->selectedKelasId();
+
+                return [
+                    'id_mapel' => $jadwal->id_mapel,
+                    'id_guru' => $jadwal->id_guru,
+                    'nama_kelompok' => $jadwal->nama_kelompok,
+                    'kelas_gabungan' => $jadwal->kelases
+                        ->pluck('id')
+                        ->reject(fn ($id) => (int) $id === $anchor)
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->form(fn () => $this->sesiFormSchema())
+            ->action(function (array $data, array $arguments, Action $action): void {
+                $this->simpanSesi(
+                    $data,
+                    (int) ($arguments['jam'] ?? 0),
+                    (int) ($arguments['jadwal'] ?? 0),
+                    $action,
+                );
+            });
+    }
+
+    public function hapusSesiAction(): Action
+    {
+        return Action::make('hapusSesi')
+            ->label('Hapus')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Hapus sesi mengajar?')
+            ->modalDescription(function (array $arguments): string {
+                $jadwal = $this->cariSesi((int) ($arguments['jadwal'] ?? 0));
+
+                if (! $jadwal) {
+                    return 'Sesi tidak ditemukan.';
+                }
+
+                $kelas = $jadwal->kelases->map(fn ($k) => $k->kelas . ' ' . $k->nama_kelas)->join(', ');
+
+                return "Sesi ini akan dihapus dari semua kelas yang mengikutinya: {$kelas}.";
+            })
+            ->action(function (array $arguments): void {
+                $jadwal = $this->cariSesi((int) ($arguments['jadwal'] ?? 0));
+
+                if (! $jadwal) {
+                    Notification::make()
+                        ->title('Sesi tidak ditemukan.')
+                        ->body('Muat ulang halaman lalu coba lagi.')
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
+                $jadwal->delete(); // baris pivot ikut terhapus (ON DELETE CASCADE)
+
+                Notification::make()->title('Sesi dihapus.')->success()->send();
+            });
+    }
+
+    // ------------------------------------------------------------------
+    // Form & aturan bisnis
+    // ------------------------------------------------------------------
+
+    protected function sesiFormSchema(): array
+    {
+        return [
+            Forms\Components\Select::make('id_mapel')
+                ->label('Mata Pelajaran')
+                ->options(fn () => $this->mapels->pluck('mata_pelajaran', 'id'))
+                ->searchable()
+                ->required()
+                ->live(),
+
+            Forms\Components\Select::make('id_guru')
+                ->label('Guru')
+                ->options(fn () => $this->gurus->pluck('nama_guru', 'id'))
+                ->searchable()
+                ->required(),
+
+            Forms\Components\TextInput::make('nama_kelompok')
+                ->label('Nama kelompok')
+                ->helperText('Pembeda sesi paralel di kelas yang sama, mis. "Islam" atau "Kristen".')
+                ->maxLength(255)
+                ->visible(fn (Get $get) => $this->mapelPunya($get('id_mapel'), 'boleh_paralel'))
+                ->required(fn (Get $get) => $this->mapelPunya($get('id_mapel'), 'boleh_paralel')),
+
+            Forms\Components\Select::make('kelas_gabungan')
+                ->label('Gabung dengan kelas')
+                ->multiple()
+                ->options(fn () => $this->kelases
+                    ->where('id', '!=', $this->selectedKelasId())
+                    ->mapWithKeys(fn ($k) => [$k->id => $k->kelas . ' ' . $k->nama_kelas])
+                    ->all())
+                ->visible(fn (Get $get) => $this->mapelPunya($get('id_mapel'), 'boleh_gabung')),
         ];
+    }
+
+    protected function mapelPunya(mixed $mapelId, string $flag): bool
+    {
+        return filled($mapelId)
+            && (bool) $this->mapels->firstWhere('id', (int) $mapelId)?->{$flag};
+    }
+
+    /** Kelas yang sedang dipilih di filter (null kalau "Semua Kelas"). */
+    protected function selectedKelasId(): ?int
+    {
+        $id = $this->data['selectedKelasId'] ?? null;
+
+        return is_numeric($id) ? (int) $id : null;
+    }
+
+    /** Ambil sesi milik hari + kelas terpilih. Argumen dari browser tidak dipercaya begitu saja. */
+    protected function cariSesi(int $jadwalId): ?Jadwal
+    {
+        $anchor = $this->selectedKelasId();
+        $hariId = (int) ($this->data['selectedHariId'] ?? 0);
+
+        if (! $jadwalId || ! $anchor || ! $hariId) {
+            return null;
+        }
+
+        return Jadwal::with(['mapel', 'kelases'])
+            ->where('id', $jadwalId)
+            ->where('id_hari', $hariId)
+            ->whereHas('kelases', fn ($q) => $q->where('tbl_kelas.id', $anchor))
+            ->first();
+    }
+
+    protected function tolak(Action $action, string $judul, ?string $isi = null): never
+    {
+        Notification::make()->title($judul)->body($isi)->danger()->send();
+
+        $action->halt();
+    }
+
+    protected function simpanSesi(array $data, int $jamId, ?int $jadwalId, Action $action): void
+    {
+        $hariId = (int) ($this->data['selectedHariId'] ?? 0);
+        $anchor = $this->selectedKelasId();
+
+        if (! $hariId || ! $anchor) {
+            $this->tolak($action, 'Pilih Hari dan kelas spesifik terlebih dahulu.');
+        }
+
+        if (! $this->jams->contains('id', $jamId)) {
+            $this->tolak($action, 'Jam tidak valid untuk hari ini.', 'Muat ulang halaman lalu coba lagi.');
+        }
+
+        // Baca mapel langsung dari DB agar penanda boleh_gabung/boleh_paralel selalu terbaru
+        $mapel = Mapel::find($data['id_mapel'] ?? null);
+        $guruId = (int) ($data['id_guru'] ?? 0);
+
+        if (! $mapel || ! Guru::whereKey($guruId)->exists()) {
+            $this->tolak($action, 'Mata pelajaran atau guru tidak valid.');
+        }
+
+        $kelompok = null;
+        if ($mapel->boleh_paralel) {
+            $kelompok = trim((string) ($data['nama_kelompok'] ?? ''));
+
+            if ($kelompok === '') {
+                $this->tolak($action, 'Nama kelompok wajib diisi untuk mapel paralel.');
+            }
+        }
+
+        $gabungan = $mapel->boleh_gabung
+            ? array_map('intval', $data['kelas_gabungan'] ?? [])
+            : [];
+
+        $kelasIds = collect([$anchor, ...$gabungan])->unique()->values();
+
+        if (Kelas::whereIn('id', $kelasIds)->count() !== $kelasIds->count()) {
+            $this->tolak($action, 'Kelas tidak valid.');
+        }
+
+        $existing = null;
+        if ($jadwalId) {
+            $existing = $this->cariSesi($jadwalId);
+
+            if (! $existing || (int) $existing->id_jam !== $jamId) {
+                $this->tolak($action, 'Sesi tidak ditemukan.', 'Muat ulang halaman lalu coba lagi.');
+            }
+        }
+
+        $error = null;
+
+        try {
+            DB::transaction(function () use ($hariId, $jamId, $mapel, $guruId, $kelompok, $kelasIds, $existing) {
+                // Kunci baris kelas agar dua admin tidak bisa menyimpan bentrok bersamaan
+                Kelas::whereIn('id', $kelasIds)->orderBy('id')->lockForUpdate()->get();
+
+                $slot = fn () => Jadwal::query()
+                    ->where('id_hari', $hariId)
+                    ->where('id_jam', $jamId)
+                    ->when($existing, fn ($q) => $q->where('id', '!=', $existing->id));
+
+                // Aturan 1: satu guru hanya satu sesi pada hari+jam yang sama
+                if ($slot()->where('id_guru', $guruId)->exists()) {
+                    throw new \DomainException('Guru ini sudah mengajar di sesi lain pada hari dan jam yang sama.');
+                }
+
+                // Aturan 2: kelas yang sudah terisi hanya boleh ditambah sesi bila
+                // sesi baru DAN sesi yang sudah ada sama-sama mapel paralel
+                $sesiLain = $slot()
+                    ->with(['mapel', 'kelases'])
+                    ->whereHas('kelases', fn ($q) => $q->whereIn('tbl_kelas.id', $kelasIds))
+                    ->get();
+
+                foreach ($sesiLain as $sesi) {
+                    $kelasBentrok = $sesi->kelases
+                        ->whereIn('id', $kelasIds)
+                        ->map(fn ($k) => $k->kelas . ' ' . $k->nama_kelas)
+                        ->join(', ');
+
+                    if (! ($mapel->boleh_paralel && $sesi->mapel?->boleh_paralel)) {
+                        throw new \DomainException(
+                            "Kelas {$kelasBentrok} sudah memiliki pelajaran {$sesi->mapel?->mata_pelajaran} pada jam ini."
+                        );
+                    }
+
+                    if (
+                        (int) $sesi->id_mapel === (int) $mapel->id
+                        && strcasecmp((string) $sesi->nama_kelompok, (string) $kelompok) === 0
+                    ) {
+                        throw new \DomainException(
+                            "Kelas {$kelasBentrok} sudah memiliki kelompok \"{$kelompok}\" untuk mapel ini pada jam yang sama."
+                        );
+                    }
+                }
+
+                $atribut = [
+                    'id_hari' => $hariId,
+                    'id_jam' => $jamId,
+                    'id_mapel' => $mapel->id,
+                    'id_guru' => $guruId,
+                    'nama_kelompok' => $kelompok,
+                ];
+
+                if ($existing) {
+                    $existing->update($atribut);
+                    $jadwal = $existing;
+                } else {
+                    $jadwal = Jadwal::create($atribut);
+                }
+
+                $jadwal->kelases()->sync($kelasIds->all());
+            });
+        } catch (\DomainException $e) {
+            $error = $e->getMessage();
+        } catch (QueryException $e) {
+            Log::error('Jadwal QueryException', ['code' => $e->getCode(), 'message' => $e->getMessage()]);
+
+            $error = str_contains($e->getMessage(), 'jadwal_unique_per_guru_per_jam')
+                ? 'Guru ini sudah mengajar di sesi lain pada hari dan jam yang sama.'
+                : 'Terjadi kesalahan database yang tidak terduga. Mohon cek log sistem.';
+        } catch (\Throwable $e) {
+            Log::error('Jadwal error: ' . $e->getMessage());
+
+            $error = 'Terjadi kesalahan. Mohon cek log sistem.';
+        }
+
+        if ($error !== null) {
+            $this->tolak($action, 'Gagal menyimpan jadwal.', $error);
+        }
+
+        Notification::make()
+            ->title($existing ? 'Jadwal berhasil diperbarui.' : 'Jadwal berhasil ditambahkan.')
+            ->success()
+            ->send();
     }
 
     public static function canViewAny(): bool
     {
-        // Contoh: Hanya role 'admin' yang bisa melihat Resource Guru
         return auth()->user()->role === 'admin';
-
-        // Jika Anda punya beberapa role yang diizinkan:
-        // return in_array(auth()->user()->role, ['admin', 'kepala_sekolah']);
     }
 }

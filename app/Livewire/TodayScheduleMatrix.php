@@ -44,7 +44,7 @@ class TodayScheduleMatrix extends Component
 
         // Muat semua data master yang dibutuhkan
         $this->haris = Hari::orderBy('order')->get();
-        $this->jams = Jam::orderBy('ke')->get();
+        $this->jams = $hariToday ? $hariToday->jamPelajaran() : collect();
         $this->gurus = Guru::all();
         $this->mapels = Mapel::all();
         $this->kelases = Kelas::all();
@@ -62,39 +62,41 @@ class TodayScheduleMatrix extends Component
             return;
         }
 
-        // Ambil data presensi guru untuk hari ini
-        // Eager load relasi langsung dari PresensiGuru
         $presensiHariIni = PresensiGuru::whereDate('tanggal_jadwal', Carbon::today())
-                                        // Filter berdasarkan hari ini jika kolom id_hari ada di PresensiGuru
-                                        // Jika tidak ada id_hari di PresensiGuru, ini bisa dihapus
-                                        ->where('id_hari', $this->todayHariId)
-                                        ->with(['kelas', 'jam', 'mapel', 'guru']) // Eager load relasi langsung
-                                        ->get();
+            ->where('id_hari', $this->todayHariId)
+            ->with(['kelas', 'jam', 'mapel', 'guru', 'jadwal.kelases'])
+            ->orderBy('id')
+            ->get();
 
+        $jamIds = $this->jams->pluck('id')->all();
+
+        // Siapkan sel kosong untuk semua kelas x jam hari ini
         $this->jadwalDataPerKelas = [];
-
-        // Iterasi melalui semua kelas yang ada (dari data master)
         foreach ($this->kelases as $kelas) {
-            $this->jadwalDataPerKelas[$kelas->id] = [];
-            // Filter presensi yang sudah diambil berdasarkan id_kelas
-            $kelasPresensi = $presensiHariIni->where('id_kelas', $kelas->id)->keyBy('id_jam');
-
             foreach ($this->jams as $jam) {
-                $this->jadwalDataPerKelas[$kelas->id][$jam->id] = [
-                    'id_guru' => null,
-                    'id_mapel' => null,
-                    'jadwal_id' => null, // Ini akan tetap null atau disesuaikan jika id_jadwal ada di PresensiGuru
-                    'presensi_guru_id' => null,
-                ];
+                $this->jadwalDataPerKelas[$kelas->id][$jam->id] = [];
+            }
+        }
 
-                if ($kelasPresensi->has($jam->id)) {
-                    $presensi = $kelasPresensi->get($jam->id);
-                    $this->jadwalDataPerKelas[$kelas->id][$jam->id]['id_guru'] = $presensi->id_guru;
-                    $this->jadwalDataPerKelas[$kelas->id][$jam->id]['id_mapel'] = $presensi->id_mapel;
-                    // Jika Anda ingin menyimpan id_jadwal dari PresensiGuru, pastikan kolomnya ada
-                    $this->jadwalDataPerKelas[$kelas->id][$jam->id]['jadwal_id'] = $presensi->id_jadwal ?? null;
-                    $this->jadwalDataPerKelas[$kelas->id][$jam->id]['presensi_guru_id'] = $presensi->id;
+        foreach ($presensiHariIni as $presensi) {
+            // Lewati presensi yang jamnya bukan milik profil jam hari ini
+            if (! in_array($presensi->id_jam, $jamIds)) {
+                continue;
+            }
+
+            // Satu sesi bisa milik beberapa kelas (gabungan)
+            foreach ($presensi->idKelasSesi() as $kelasId) {
+                if (! isset($this->jadwalDataPerKelas[$kelasId])) {
+                    continue;
                 }
+
+                $this->jadwalDataPerKelas[$kelasId][$presensi->id_jam][] = [
+                    'id_guru' => $presensi->id_guru,
+                    'id_mapel' => $presensi->id_mapel,
+                    'nama_kelompok' => $presensi->jadwal?->nama_kelompok,
+                    'jadwal_id' => $presensi->id_jadwal,
+                    'presensi_guru_id' => $presensi->id,
+                ];
             }
         }
     }

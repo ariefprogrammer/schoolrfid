@@ -41,8 +41,9 @@ class GenerateGuruPresensiData extends Command
 
         $this->info("Menggenerasi data untuk minggu: {$startOfWeek->toDateString()} sampai {$endOfWeek->toDateString()}");
 
-        // Ambil semua jadwal dari tbl_jadwal, eager load relasi 'hari'
-        $schedules = Jadwal::with('hari')->get();
+        // Ambil semua sesi dari tbl_jadwal, eager load relasi 'hari' dan 'kelases'
+        // (kelases = kelas-kelas yang mengikuti sesi, lewat pivot tbl_jadwal_kelas)
+        $schedules = Jadwal::with(['hari', 'kelases'])->get();
 
         DB::beginTransaction(); // Memulai transaksi database untuk memastikan atomicity operasi
         try {
@@ -75,36 +76,43 @@ class GenerateGuruPresensiData extends Command
                     continue;
                 }
 
-                // Cek apakah record presensi untuk slot jadwal dan tanggal spesifik ini sudah ada
-                // Ini penting untuk mencegah duplikasi jika cron job dijalankan beberapa kali secara tidak sengaja dalam seminggu.
+                // Sesi tanpa kelas tidak bisa dibuatkan presensi (kolom id_kelas di presensi memerlukan kelas)
+                if ($schedule->kelases->isEmpty()) {
+                    $this->warn("Melewatkan Jadwal ID {$schedule->id}: sesi ini tidak punya kelas.");
+                    continue;
+                }
+
+                $kelasSesi = $schedule->kelases->sortBy('id')->values();
+                $labelKelas = $kelasSesi
+                    ->map(fn ($k) => trim($k->kelas . ' ' . $k->nama_kelas))
+                    ->join(' + ');
+
+                // Satu record presensi per SESI per tanggal
                 $existingPresensi = PresensiGuru::where('tanggal_jadwal', $tanggalJadwal->toDateString())
-                                                ->where('id_kelas', $schedule->id_kelas)
-                                                ->where('id_hari', $schedule->id_hari)
-                                                ->where('id_jam', $schedule->id_jam)
-                                                ->where('id_guru', $schedule->id_guru)
-                                                ->where('id_mapel', $schedule->id_mapel)
-                                                ->first();
+                    ->where('id_jadwal', $schedule->id)
+                    ->first();
 
                 if ($existingPresensi) {
                     $this->comment("Melewatkan (sudah ada): Jadwal ID {$schedule->id} pada {$tanggalJadwal->toDateString()}");
-                    // Opsi: Anda bisa memperbarui record yang ada di sini jika diperlukan (misal: memperbarui periode_awal/akhir)
-                } else {
-                    // Buat record presensi baru
-                    PresensiGuru::create([
-                        'periode_awal' => $startOfWeek->toDateString(),
-                        'periode_akhir' => $endOfWeek->toDateString(),
-                        'id_kelas' => $schedule->id_kelas,
-                        'id_hari' => $schedule->id_hari,
-                        'id_jam' => $schedule->id_jam,
-                        'id_guru' => $schedule->id_guru,
-                        'id_mapel' => $schedule->id_mapel,
-                        'tanggal_jadwal' => $tanggalJadwal->toDateString(),
-                        'status_in' => 'unassign',  // Diisi 'unassign' seperti permintaan
-                        'status_out' => 'unassign', // Diisi 'unassign' seperti permintaan
-                        // jam_in dan jam_out adalah nullable, jadi akan null secara default
-                    ]);
-                    $this->info("Berhasil membuat: Jadwal ID {$schedule->id} untuk {$scheduleDayName} pada {$tanggalJadwal->toDateString()}");
+                    continue;
                 }
+
+                PresensiGuru::create([
+                    'periode_awal' => $startOfWeek->toDateString(),
+                    'periode_akhir' => $endOfWeek->toDateString(),
+                    'id_jadwal' => $schedule->id,
+                    'id_kelas' => $kelasSesi->first()->id, // data bantu: kelas pertama sesi
+                    'label_kelas' => $labelKelas,
+                    'id_hari' => $schedule->id_hari,
+                    'id_jam' => $schedule->id_jam,
+                    'id_guru' => $schedule->id_guru,
+                    'id_mapel' => $schedule->id_mapel,
+                    'tanggal_jadwal' => $tanggalJadwal->toDateString(),
+                    'status_in' => 'unassign',
+                    'status_out' => 'unassign',
+                ]);
+
+                $this->info("Berhasil membuat: Jadwal ID {$schedule->id} ({$labelKelas}) untuk {$scheduleDayName} pada {$tanggalJadwal->toDateString()}");
             }
             DB::commit(); // Commit transaksi jika semua operasi berhasil
             $this->info('Generasi data presensi guru mingguan selesai.');

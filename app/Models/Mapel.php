@@ -9,10 +9,17 @@ class Mapel extends Model
 {
     use HasFactory;
 
-    protected $table = 'tbl_mapel'; // Tentukan nama tabel yang sesuai
+    protected $table = 'tbl_mapel'; 
 
     protected $fillable = [
         'kode',
         'mata_pelajaran',
+        'boleh_gabung',
+        'boleh_paralel',
+    ];
+
+    protected $casts = [
+        'boleh_gabung' => 'boolean',
+        'boleh_paralel' => 'boolean',
     ];
 }

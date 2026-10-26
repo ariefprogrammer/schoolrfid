@@ -11,6 +11,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Models\Pengaturan;
+use App\Jobs\SendWhatsAppNotification;
 
 class GuruPresensiMasuk extends Component
 {
@@ -65,7 +66,6 @@ class GuruPresensiMasuk extends Component
         $guru = Guru::where('rfid', $this->rfid)->first();
 
         if (!$guru) {
-            // --- PERBAIKAN DI SINI ---
             // Panggil metode kustom yang kita buat
             $this->displayCustomNotification(
                 'RFID Guru tidak ditemukan.',
@@ -96,7 +96,7 @@ class GuruPresensiMasuk extends Component
         }
 
         // Ambil jadwal dari tbl_presensi_guru
-        $this->jadwalHariIni = PresensiGuru::with(['mapel', 'jam', 'kelas'])
+        $this->jadwalHariIni = PresensiGuru::with(['mapel', 'jam', 'kelas', 'jadwal.kelases'])
                                         ->where('id_guru', $this->guru->id)
                                         ->where('id_hari', $hariIni->id)
                                         ->whereNull('jam_in')
@@ -148,9 +148,9 @@ class GuruPresensiMasuk extends Component
         }
 
         // --- Validasi 1: Semua jadwal yang dipilih harus untuk kelas yang sama ---
-        $firstClassId = $selectedSchedulesModels->first()->id_kelas;
-        $firstClassName = ($selectedSchedulesModels->first()->kelas->kelas ?? '') . ' ' . ($selectedSchedulesModels->first()->kelas->nama_kelas ?? '-');
-        $allSameClass = $selectedSchedulesModels->every(fn($schedule) => $schedule->id_kelas === $firstClassId);
+        $firstClassKey = $selectedSchedulesModels->first()->idKelasSesi();
+        $firstClassName = $selectedSchedulesModels->first()->namaKelasTampil();
+        $allSameClass = $selectedSchedulesModels->every(fn ($schedule) => $schedule->idKelasSesi() === $firstClassKey);
 
         if (!$allSameClass) {
             $this->selectedSchedules = [];
@@ -202,26 +202,28 @@ class GuruPresensiMasuk extends Component
                                              ->sortBy(fn($schedule) => $schedule->jam->ke);
         
         // Lakukan kembali validasi kelas sama dan jam berurutan secara cepat
-        if ($sortedSelected->isEmpty() || !$sortedSelected->every(fn($s) => $s->id_kelas === $sortedSelected->first()->id_kelas) || !$this->isSelectionSequential($sortedSelected)) {
+        if ($sortedSelected->isEmpty() || !$sortedSelected->every(fn($s) => $s->idKelasSesi() === $sortedSelected->first()->idKelasSesi()) || !$this->isSelectionSequential($sortedSelected)) {
             $this->displayCustomNotification('Gagal Presensi.', 'Pilihan jadwal tidak valid atau tidak berurutan/sama kelas.', 'danger');
             $this->selectedSchedules = [];
             return;
         }
 
         $firstSelectedSchedule = $sortedSelected->first();
-        $firstClassId = $firstSelectedSchedule->id_kelas;
-        $firstClassName = ($firstSelectedSchedule->kelas->kelas ?? '') . ' ' . ($firstSelectedSchedule->kelas->nama_kelas ?? '-');
+        $firstClassKey = $firstSelectedSchedule->idKelasSesi();
+        $firstClassName = $firstSelectedSchedule->namaKelasTampil();
 
-        // Validasi: Guru tidak boleh presensi masuk jika sudah aktif di kelas lain
-        $activePresensiDiKelasLain = PresensiGuru::where('id_guru', $this->guru->id)
-                                                  ->whereNotNull('jam_in')
-                                                  ->whereNull('jam_out')
-                                                  ->where('id_kelas', '!=', $firstClassId) // Di kelas yang berbeda
-                                                  ->first();
+        // Validasi: Guru tidak boleh presensi masuk jika masih aktif di sesi dengan kelas berbeda
+        $activePresensiDiKelasLain = PresensiGuru::with(['kelas', 'jadwal.kelases'])
+            ->where('id_guru', $this->guru->id)
+            ->whereNotNull('jam_in')
+            ->whereNull('jam_out')
+            ->get()
+            ->first(fn ($p) => $p->idKelasSesi() !== $firstClassKey);
+
         if ($activePresensiDiKelasLain) {
             $this->displayCustomNotification(
                 'Gagal Presensi Masuk.',
-                'Anda masih aktif presensi di kelas lain (' . ($activePresensiDiKelasLain->kelas->kelas ?? '') . ' ' . ($activePresensiDiKelasLain->kelas->nama_kelas ?? '-') . '). Harap presensi keluar terlebih dahulu.',
+                'Anda masih aktif presensi di kelas lain (' . $activePresensiDiKelasLain->namaKelasTampil() . '). Harap presensi keluar terlebih dahulu.',
                 'danger'
             );
             return;

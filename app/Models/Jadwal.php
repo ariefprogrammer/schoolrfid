@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Jadwal extends Model
 {
@@ -17,7 +18,7 @@ class Jadwal extends Model
         'id_jam',
         'id_guru',
         'id_mapel',
-        'id_kelas',
+        'nama_kelompok',
     ];
 
     /**
@@ -52,11 +53,10 @@ class Jadwal extends Model
         return $this->belongsTo(Mapel::class, 'id_mapel', 'id');
     }
 
-    /**
-     * Get the kelas that owns the Jadwal.
-     */
-    public function kelas(): BelongsTo
+    public function kelases(): BelongsToMany
     {
-        return $this->belongsTo(Kelas::class, 'id_kelas', 'id');
+        return $this->belongsToMany(Kelas::class, 'tbl_jadwal_kelas', 'id_jadwal', 'id_kelas')
+            ->withTimestamps();
     }
+
 }

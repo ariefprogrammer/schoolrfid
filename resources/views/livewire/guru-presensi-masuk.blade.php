@@ -44,7 +44,7 @@
                                                 <h4 class="card-title fw-bold mb-1">
                                                     {{ $jadwal->mapel->mata_pelajaran ?? '-' }}
                                                 </h4>
-                                                <p class="mb-0">Kelas : {{ $jadwal->kelas->nama_kelas ?? '-' }}</p>
+                                                <p class="mb-0">Kelas : {{ $jadwal->namaKelasTampil() }}</p>
                                                 <p class="mb-0">
                                                     Waktu :
                                                     {{ \Carbon\Carbon::parse($jadwal->jam->jam_mulai)->format('H:i') ?? '-' }}

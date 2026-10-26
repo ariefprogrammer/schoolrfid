@@ -15,7 +15,9 @@ class PresensiGuru extends Model
     protected $fillable = [
         'periode_awal',
         'periode_akhir',
+        'id_jadwal',
         'id_kelas',
+        'label_kelas',
         'id_hari',
         'id_jam',
         'id_guru',
@@ -65,5 +67,33 @@ class PresensiGuru extends Model
     public function jadwal()
     {
         return $this->belongsTo(Jadwal::class, 'id_jadwal');
+    }
+
+    /**
+     * Daftar id kelas yang mengikuti sesi ini (urut, int).
+     * Untuk data lama tanpa jadwal, jatuh ke id_kelas.
+     */
+    public function idKelasSesi(): array
+    {
+        $ids = $this->jadwal?->kelases
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->sort()
+            ->values()
+            ->all();
+
+        return $ids ?: [(int) $this->id_kelas];
+    }
+
+    /**
+     * Teks kelas untuk tampilan, mis. "X A + X B".
+     */
+    public function namaKelasTampil(): string
+    {
+        if (filled($this->label_kelas)) {
+            return $this->label_kelas;
+        }
+
+        return trim(($this->kelas->kelas ?? '') . ' ' . ($this->kelas->nama_kelas ?? '-'));
     }
 }
