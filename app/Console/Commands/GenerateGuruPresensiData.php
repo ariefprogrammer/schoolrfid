@@ -116,10 +116,12 @@ class GenerateGuruPresensiData extends Command
             }
             DB::commit(); // Commit transaksi jika semua operasi berhasil
             $this->info('Generasi data presensi guru mingguan selesai.');
+            return self::SUCCESS;
         } catch (\Exception $e) {
             DB::rollBack(); // Rollback transaksi jika terjadi error
             $this->error('Terjadi error selama generasi: ' . $e->getMessage());
             $this->error('Trace: ' . $e->getTraceAsString()); // Log full trace untuk debugging
+            return self::FAILURE;
         }
     }
 }

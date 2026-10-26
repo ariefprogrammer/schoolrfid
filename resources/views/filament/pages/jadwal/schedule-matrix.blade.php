@@ -109,4 +109,12 @@
             <p class="mt-4 text-gray-600 dark:text-gray-400">Silakan pilih hari untuk melihat jadwal.</p>
         @endif
     </div>
+    <div class="mt-6 flex justify-end">
+        <x-filament::button
+            color="warning"
+            wire:click="mountAction('generateJadwalManual')"
+        >
+            Generate Jadwal Manual
+        </x-filament::button>
+    </div>
 </x-filament-panels::page>

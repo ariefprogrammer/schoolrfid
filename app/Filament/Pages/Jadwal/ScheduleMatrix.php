@@ -19,6 +19,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Artisan;
 
 class ScheduleMatrix extends Page implements HasForms
 {
@@ -250,6 +251,64 @@ class ScheduleMatrix extends Page implements HasForms
                 $jadwal->delete(); // baris pivot ikut terhapus (ON DELETE CASCADE)
 
                 Notification::make()->title('Sesi dihapus.')->success()->send();
+            });
+    }
+
+    public function generateJadwalManualAction(): Action
+    {
+        return Action::make('generateJadwalManual')
+            ->label('Generate Jadwal Manual')
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalHeading('Generate presensi guru minggu ini?')
+            ->modalDescription('Menjalankan proses yang sama dengan cron job mingguan. Presensi yang sudah ada dilewati, jadi aman dijalankan berulang.')
+            ->modalSubmitActionLabel('Ya, generate')
+            ->action(function (): void {
+                try {
+                    $exitCode = Artisan::call('presensi:generate-guru-weekly');
+                    $output = Artisan::output();
+                } catch (\Throwable $e) {
+                    Log::error('Generate jadwal manual gagal: ' . $e->getMessage());
+
+                    Notification::make()
+                        ->title('Generate gagal.')
+                        ->body('Mohon cek log sistem.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                if ($exitCode !== 0) {
+                    Log::error('Generate jadwal manual gagal', ['output' => $output]);
+
+                    // Tampilkan baris error dari command, dipotong agar notifikasi tidak terlalu panjang
+                    preg_match('/Terjadi error selama generasi:[^\n]*/', $output, $match);
+
+                    Notification::make()
+                        ->title('Generate gagal.')
+                        ->body(str($match[0] ?? 'Mohon cek log sistem.')->limit(200)->toString())
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                // Ringkasan dibaca dari output command (mengandalkan teks pesan di command)
+                $dibuat = substr_count($output, 'Berhasil membuat:');
+                $sudahAda = substr_count($output, 'Melewatkan (sudah ada)');
+                $tanpaKelas = substr_count($output, 'tidak punya kelas');
+
+                $body = "{$dibuat} presensi baru dibuat, {$sudahAda} sudah ada sebelumnya.";
+                if ($tanpaKelas > 0) {
+                    $body .= " {$tanpaKelas} sesi dilewati karena tidak punya kelas.";
+                }
+
+                Notification::make()
+                    ->title('Generate selesai.')
+                    ->body($body)
+                    ->success()
+                    ->send();
             });
     }
 
