@@ -8,6 +8,8 @@ use Filament\Forms\Components;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Notifications\Notification;
+use App\Services\HonorGuruService;
+use Illuminate\Validation\ValidationException;
 
 class AjukanLiburGuru extends Page implements HasForms
 {
@@ -39,31 +41,26 @@ class AjukanLiburGuru extends Page implements HasForms
         $data = $this->form->getState();
         $tanggal = $data['tanggal'];
 
-        // Cek apakah ada jadwal pada tanggal ini
-        $exists = PresensiGuru::whereDate('tanggal_jadwal', $tanggal)->exists();
+        // Hanya jam yang belum presensi masuk yang ditandai libur dan dibayar 100%
+        $jumlah = app(HonorGuruService::class)->catatLibur($tanggal);
 
-        if (!$exists) {
+        if ($jumlah === 0) {
+            $pesan = 'Tidak ada jadwal guru yang bisa ditetapkan libur pada tanggal tersebut (belum ada jadwal, atau semua guru sudah presensi).';
+
             Notification::make()
                 ->title('Gagal!')
-                ->body('Tidak ada jadwal guru pada tanggal tersebut.')
+                ->body($pesan)
                 ->danger()
                 ->send();
 
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'tanggal' => ['Tidak ada jadwal guru pada tanggal tersebut.'],
+            throw ValidationException::withMessages([
+                'data.tanggal' => [$pesan],
             ]);
         }
 
-        // Update semua presensi guru di tanggal ini menjadi 'libur'
-        PresensiGuru::whereDate('tanggal_jadwal', $tanggal)
-            ->update([
-                'status_in' => 'libur',
-                'status_out' => 'libur',
-            ]);
-
         Notification::make()
             ->title('Berhasil!')
-            ->body("Status semua guru pada tanggal $tanggal diubah menjadi libur.")
+            ->body("{$jumlah} jam pelajaran pada tanggal $tanggal ditetapkan libur dan dibayar 100%.")
             ->success()
             ->send();
 

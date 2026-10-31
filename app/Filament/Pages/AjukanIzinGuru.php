@@ -3,14 +3,13 @@
 namespace App\Filament\Pages;
 
 use App\Models\Guru;
-use App\Models\PresensiGuru;
+use App\Services\HonorGuruService;
 use Filament\Pages\Page;
 use Filament\Forms\Components;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Notifications\Notification;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Redirect;
 
 class AjukanIzinGuru extends Page implements HasForms
 {
@@ -52,6 +51,16 @@ class AjukanIzinGuru extends Page implements HasForms
                         'sakit' => 'Sakit',
                     ])
                     ->required(),
+
+                Components\Radio::make('jenis_izin')
+                    ->label('Jenis')
+                    ->options([
+                        'dengan_tugas' => 'Dengan tugas',
+                        'tanpa_tugas' => 'Tanpa tugas',
+                    ])
+                    ->inline()
+                    ->required()
+                    ->helperText('Menentukan persentase honor yang tetap dibayarkan (diatur di Pengaturan Aplikasi).'),
             ])
             ->statePath('data');
     }
@@ -60,43 +69,34 @@ class AjukanIzinGuru extends Page implements HasForms
     {
         $data = $this->form->getState();
 
-        $idGuru = $data['id_guru'];
-        $tanggal = $data['tanggal'];
-        $status = $data['status'];
+        // Hanya jam yang belum presensi dan bukan hari libur yang diubah
+        $jumlah = app(HonorGuruService::class)->catatIzin(
+            (int) $data['id_guru'],
+            $data['tanggal'],
+            $data['status'],
+            $data['jenis_izin'],
+        );
 
-        // Cek apakah guru punya jadwal di tanggal tersebut
-        $exists = PresensiGuru::where('id_guru', $idGuru)
-            ->whereDate('tanggal_jadwal', $tanggal)
-            ->exists();
+        if ($jumlah === 0) {
+            $pesan = 'Tidak ada jadwal yang bisa diberi izin pada tanggal tersebut (belum ada jadwal, sudah presensi, atau hari libur).';
 
-        if (!$exists) {
             Notification::make()
                 ->title('Gagal!')
-                ->body('Tidak ada jadwal guru ini pada tanggal tersebut.')
+                ->body($pesan)
                 ->danger()
                 ->send();
 
             throw ValidationException::withMessages([
-                'tanggal' => ['Tidak ada jadwal guru ini pada tanggal tersebut.'],
+                'data.tanggal' => [$pesan],
             ]);
         }
 
-        // Update semua presensi guru di tanggal tersebut
-        PresensiGuru::where('id_guru', $idGuru)
-            ->whereDate('tanggal_jadwal', $tanggal)
-            ->update([
-                'status_in' => $status,
-                'status_out' => $status,
-            ]);
-
         Notification::make()
             ->title('Berhasil!')
-            ->body('Status presensi guru berhasil diperbarui.')
+            ->body($jumlah . ' jam pelajaran guru berhasil dicatat sebagai ' . $data['status'] . '.')
             ->success()
             ->send();
 
-        // $this->form->fill();
-        // return redirect()->to(static::getUrl());
         return to_route('filament.administrator.resources.izin-gurus.index');
     }
 

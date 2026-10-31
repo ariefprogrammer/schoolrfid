@@ -101,6 +101,10 @@ class GuruPresensiMasuk extends Component
                                         ->where('id_guru', $this->guru->id)
                                         ->where('id_hari', $hariIni->id)
                                         ->whereNull('jam_in')
+                                        ->where(function ($q) {
+                                            $q->whereNull('status_in')
+                                            ->orWhereNotIn('status_in', ['izin', 'sakit', 'libur']);
+                                        })
                                         // Filter berdasarkan periode minggu ini
                                         ->where('periode_awal', $startOfWeek)
                                         ->where('periode_akhir', $endOfWeek)

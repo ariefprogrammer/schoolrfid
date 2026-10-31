@@ -4,16 +4,14 @@ namespace App\Filament\Resources;
 
 use App\Models\Guru;
 use App\Models\PresensiGuru;
+use App\Services\HonorGuruService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Database\Eloquent\Model;
-use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
-use App\Models\User;
 
 class IzinGuruResource extends Resource
 {
@@ -47,6 +45,16 @@ class IzinGuruResource extends Resource
                         'Sakit' => 'Sakit',
                     ])
                     ->required(),
+
+                Forms\Components\Radio::make('jenis_izin')
+                    ->label('Jenis')
+                    ->options([
+                        'dengan_tugas' => 'Dengan tugas',
+                        'tanpa_tugas' => 'Tanpa tugas',
+                    ])
+                    ->inline()
+                    ->required()
+                    ->helperText('Menentukan persentase honor yang tetap dibayarkan (diatur di Pengaturan Aplikasi).'),
             ]);
     }
 
@@ -55,10 +63,21 @@ class IzinGuruResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('guru.nama_guru')->label('Nama Guru'),
-                Tables\Columns\TextColumn::make('tanggal_jadwal')->label('Tanggal'),
+                Tables\Columns\TextColumn::make('tanggal_jadwal')->label('Tanggal')->date('d M Y'),
                 Tables\Columns\TextColumn::make('status_in')->label('Status'),
+                Tables\Columns\TextColumn::make('jenis_izin')
+                    ->label('Jenis')
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        'dengan_tugas' => 'Dengan tugas',
+                        'tanpa_tugas' => 'Tanpa tugas',
+                        default => '-',
+                    }),
+                Tables\Columns\TextColumn::make('total_upah')
+                    ->label('Upah')
+                    ->formatStateUsing(fn ($state) => 'Rp ' . number_format((int) $state, 0, ',', '.')),
                 Tables\Columns\TextColumn::make('updated_at')->label('Terakhir Diubah'),
             ])
+            ->defaultSort('tanggal_jadwal', 'desc')
             ->filters([
                 //
             ]);
@@ -76,41 +95,5 @@ class IzinGuruResource extends Resource
             'index' => Pages\ListIzinGurus::route('/'),
             'create' => Pages\CreateIzinGuru::route('/create'),
         ];
-    }
-
-    protected function handleRecordCreation(array $data): Model
-    {
-        $idGuru = $data['id_guru'];
-        $tanggal = $data['tanggal'];
-        $status = $data['status'];
-
-        // Cek apakah guru punya jadwal di tanggal tersebut
-        $exists = PresensiGuru::where('id_guru', $idGuru)
-            ->whereDate('tanggal_jadwal', $tanggal)
-            ->exists();
-
-        if (!$exists) {
-            throw ValidationException::withMessages([
-                'tanggal' => ['Tidak ada jadwal guru ini pada tanggal tersebut.'],
-            ]);
-        }
-
-        // Update status_in dan status_out
-        PresensiGuru::where('id_guru', $idGuru)
-            ->whereDate('tanggal_jadwal', $tanggal)
-            ->update([
-                'status_in' => $status,
-                'status_out' => $status,
-            ]);
-
-        // Tampilkan notifikasi sukses
-        Notification::make()
-            ->title('Berhasil!')
-            ->body('Status presensi guru berhasil diperbarui.')
-            ->success()
-            ->send();
-
-        // Kembalikan model dummy agar Filament tidak error
-        return new PresensiGuru();
     }
 }

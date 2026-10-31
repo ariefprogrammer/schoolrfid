@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 
 class HonorGuruService
 {
+    public const PERSEN_LIBUR = 100;
+
     protected Pengaturan $aturan;
 
     public function __construct()
@@ -187,5 +189,56 @@ class HonorGuruService
             ->whereIn('id', $rows->pluck('id'))
             ->lockForUpdate()
             ->get();
+    }
+
+    /**
+     * Catat izin/sakit untuk satu guru pada satu tanggal.
+     * Hanya baris yang belum presensi masuk dan bukan hari libur. Mengembalikan jumlah baris yang diubah.
+     */
+    public function catatIzin(int $idGuru, $tanggal, string $status, string $jenisIzin): int
+    {
+        $upah = (int) $this->aturan->upah_perjam;
+        $persen = (int) ($jenisIzin === 'dengan_tugas'
+            ? $this->aturan->izin_dengan_tugas
+            : $this->aturan->izin_tanpa_tugas);
+
+        return PresensiGuru::where('id_guru', $idGuru)
+            ->whereDate('tanggal_jadwal', $tanggal)
+            ->whereNull('jam_in')
+            ->where(fn ($q) => $q->whereNull('status_in')->orWhere('status_in', '!=', 'libur'))
+            ->update([
+                'status_in' => $status,
+                'status_out' => $status,
+                'jenis_izin' => $jenisIzin,
+                'durasi_terlambat' => 0,
+                'durasi_bolos' => 0,
+                'potongan_terlambat' => 0,
+                'potongan_bolos' => 0,
+                'upah_dasar' => $upah,
+                'total_upah' => (int) round($upah * $persen / 100),
+            ]);
+    }
+
+    /**
+     * Tetapkan libur nasional untuk semua guru pada satu tanggal.
+     * Hanya baris yang belum presensi masuk. Mengembalikan jumlah baris yang diubah.
+     */
+    public function catatLibur($tanggal): int
+    {
+        $upah = (int) $this->aturan->upah_perjam;
+
+        return PresensiGuru::whereDate('tanggal_jadwal', $tanggal)
+            ->whereNull('jam_in')
+            ->update([
+                'status_in' => 'libur',
+                'status_out' => 'libur',
+                'jenis_izin' => null,
+                'durasi_terlambat' => 0,
+                'durasi_bolos' => 0,
+                'potongan_terlambat' => 0,
+                'potongan_bolos' => 0,
+                'upah_dasar' => $upah,
+                'total_upah' => (int) round($upah * self::PERSEN_LIBUR / 100),
+            ]);
     }
 }

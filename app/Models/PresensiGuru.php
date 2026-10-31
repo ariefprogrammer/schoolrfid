@@ -34,6 +34,8 @@ class PresensiGuru extends Model
         'potongan_terlambat',
         'potongan_bolos',
         'total_upah',
+
+        'jenis_izin'
     ];
 
     // Casting untuk memastikan Carbon instances saat diakses
