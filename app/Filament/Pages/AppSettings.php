@@ -139,6 +139,77 @@ class AppSettings extends Page implements HasForms
                     ])
                     ->columns(2),
 
+                Fieldset::make('Aturan Keterlambatan')
+                    ->schema([
+                        TextInput::make('batas_terlambat')
+                            ->label('Batas Terlambat (menit)')
+                            ->numeric()->minValue(0)->default(0)->required()
+                            ->suffix('menit')
+                            ->helperText('Toleransi keterlambatan sebelum potongan mulai dihitung'),
+
+                        TextInput::make('potongan_terlambat')
+                            ->label('Potongan Terlambat (Rp)')
+                            ->numeric()->minValue(0)->default(0)->required()
+                            ->prefix('Rp')
+                            ->helperText('Nominal potongan untuk setiap kelipatan durasi'),
+
+                        TextInput::make('durasi_potongan_terlambat')
+                            ->label('Durasi Potongan Terlambat (menit)')
+                            ->numeric()->minValue(1)->default(15)->required()
+                            ->suffix('menit')
+                            ->helperText('Contoh: 15 = setiap 15 menit terlambat dipotong sesuai nominal di samping'),
+
+                        TextInput::make('maks_potongan_terlambat')
+                            ->label('Maksimal Potongan Terlambat (Rp)')
+                            ->numeric()->minValue(0)->default(0)->required()
+                            ->prefix('Rp')
+                            ->helperText('Batas atas total potongan terlambat per hari'),
+                    ])
+                    ->columns(2),
+
+                Fieldset::make('Aturan Bolos')
+                    ->schema([
+                        TextInput::make('batas_bolos')
+                            ->label('Batas Bolos (menit)')
+                            ->numeric()->minValue(0)->default(0)->required()
+                            ->suffix('menit')
+                            ->helperText('Keterlambatan melebihi batas ini dianggap bolos'),
+
+                        TextInput::make('potongan_bolos')
+                            ->label('Potongan Bolos (Rp)')
+                            ->numeric()->minValue(0)->default(0)->required()
+                            ->prefix('Rp')
+                            ->helperText('Nominal potongan untuk setiap kelipatan durasi'),
+
+                        TextInput::make('durasi_potongan_bolos')
+                            ->label('Durasi Potongan Bolos (menit)')
+                            ->numeric()->minValue(1)->default(15)->required()
+                            ->suffix('menit'),
+
+                        TextInput::make('maks_potongan_bolos')
+                            ->label('Maksimal Potongan Bolos (Rp)')
+                            ->numeric()->minValue(0)->default(0)->required()
+                            ->prefix('Rp')
+                            ->helperText('Batas atas total potongan bolos per hari'),
+                    ])
+                    ->columns(2),
+
+                Fieldset::make('Aturan Izin')
+                    ->schema([
+                        TextInput::make('izin_dengan_tugas')
+                            ->label('Izin dengan Tugas (%)')
+                            ->numeric()->minValue(0)->maxValue(100)->default(100)->required()
+                            ->suffix('%')
+                            ->helperText('Persentase honor yang tetap dibayarkan'),
+
+                        TextInput::make('izin_tanpa_tugas')
+                            ->label('Izin tanpa Tugas (%)')
+                            ->numeric()->minValue(0)->maxValue(100)->default(0)->required()
+                            ->suffix('%')
+                            ->helperText('Persentase honor yang tetap dibayarkan'),
+                    ])
+                    ->columns(2),
+
                 Fieldset::make('Telegram API')
                     ->schema([
                         TextInput::make('token_telegram')
