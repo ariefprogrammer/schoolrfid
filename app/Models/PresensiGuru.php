@@ -27,6 +27,13 @@ class PresensiGuru extends Model
         'jam_out',
         'status_out',
         'tanggal_jadwal',
+
+        'durasi_terlambat',
+        'durasi_bolos',
+        'upah_dasar',
+        'potongan_terlambat',
+        'potongan_bolos',
+        'total_upah',
     ];
 
     // Casting untuk memastikan Carbon instances saat diakses

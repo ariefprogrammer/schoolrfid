@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Models\Pengaturan;
 use App\Jobs\SendWhatsAppNotification;
+use App\Services\HonorGuruService;
 
 class GuruPresensiMasuk extends Component
 {
@@ -184,7 +185,6 @@ class GuruPresensiMasuk extends Component
 
     public function presensiMasuk(): void
     {
-
         if (is_null($this->guru)) {
             $this->displayCustomNotification('Error.', 'Data guru tidak ditemukan. Mohon ulangi proses dari awal.', 'danger');
             $this->showModal = false;
@@ -199,8 +199,8 @@ class GuruPresensiMasuk extends Component
         }
 
         $sortedSelected = $this->jadwalHariIni->filter(fn($schedule) => in_array($schedule->id, $this->selectedSchedules))
-                                             ->sortBy(fn($schedule) => $schedule->jam->ke);
-        
+                                            ->sortBy(fn($schedule) => $schedule->jam->ke);
+
         // Lakukan kembali validasi kelas sama dan jam berurutan secara cepat
         if ($sortedSelected->isEmpty() || !$sortedSelected->every(fn($s) => $s->idKelasSesi() === $sortedSelected->first()->idKelasSesi()) || !$this->isSelectionSequential($sortedSelected)) {
             $this->displayCustomNotification('Gagal Presensi.', 'Pilihan jadwal tidak valid atau tidak berurutan/sama kelas.', 'danger');
@@ -228,7 +228,7 @@ class GuruPresensiMasuk extends Component
             );
             return;
         }
-        
+
         // Validasi: Guru tidak boleh presensi masuk ulang di jadwal yang sama jika jam_in sudah terisi
         $alreadyClockedIn = $sortedSelected->first(fn($schedule) => !is_null($schedule->jam_in));
         if ($alreadyClockedIn) {
@@ -236,26 +236,21 @@ class GuruPresensiMasuk extends Component
             return;
         }
 
+        // Tolak bila semua jam pelajaran yang dipilih sudah berakhir
+        $service = app(HonorGuruService::class);
+        if (! $service->adaJamDiikuti($sortedSelected, Carbon::now())) {
+            $this->displayCustomNotification('Gagal Presensi Masuk.', 'Jam pelajaran yang dipilih sudah berakhir. Silakan hubungi admin.', 'danger');
+            return;
+        }
+
         // Lakukan update ke database
         try {
             $now = Carbon::now();
-            $firstJamMulai = Carbon::parse($firstSelectedSchedule->jam->jam_mulai);
-            $statusIn = ($now->lessThanOrEqualTo($firstJamMulai)) ? 'hadir' : 'terlambat';
 
-            foreach ($sortedSelected as $scheduleToUpdate) {
-                // Periksa sekali lagi untuk keamanan (tidak seharusnya terjadi jika validasi di atas benar)
-                if (!is_null($scheduleToUpdate->jam_in)) {
-                     $this->displayCustomNotification('Peringatan.', 'Jadwal ID ' . $scheduleToUpdate->id . ' sudah presensi masuk. Melewatkan.', 'warning');
-                     continue;
-                }
+            // Status, durasi terlambat, dan potongan dihitung & disimpan oleh service
+            $statusIn = $service->catatMasuk($sortedSelected, $now);
 
-                $scheduleToUpdate->update([
-                    'jam_in' => $now,
-                    'status_in' => $statusIn,
-                ]);
-            }
-
-            // fungsi mengirim notifikasi ke Telegram Kepala Sekolah & Guru
+            // Notifikasi ke Telegram Kepala Sekolah & Guru
             try {
                 $pengaturan = Pengaturan::first();
                 if ($pengaturan && $pengaturan->token_telegram) {
@@ -265,7 +260,6 @@ class GuruPresensiMasuk extends Component
                         . "Waktu: " . $now->format('H:i:s') . "\n"
                         . "Status: *" . ucfirst($statusIn) . "*";
 
-                    // Kirim ke Kepala Sekolah jika chat_id tersedia
                     if (!empty($pengaturan->telegram_kepsek)) {
                         $urlKepsek = "https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage"
                             . "?chat_id={$pengaturan->telegram_kepsek}"
@@ -274,7 +268,6 @@ class GuruPresensiMasuk extends Component
                         @file_get_contents($urlKepsek);
                     }
 
-                    // Kirim ke Guru yang presensi jika chat_id tersedia
                     if (!empty($this->guru->telegram_chat_id)) {
                         $urlGuru = "https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage"
                             . "?chat_id={$this->guru->telegram_chat_id}"
@@ -287,6 +280,7 @@ class GuruPresensiMasuk extends Component
                 \Log::error('Gagal mengirim notifikasi Telegram: ' . $e->getMessage());
             }
 
+            // Notifikasi WhatsApp
             try {
                 $pesanWa = "📢 Presensi Masuk Guru\n"
                     . "Nama: {$this->guru->nama_guru}\n"
@@ -294,20 +288,20 @@ class GuruPresensiMasuk extends Component
                     . "Waktu: " . $now->format('H:i:s') . "\n"
                     . "Status: " . ucfirst($statusIn);
 
-                if (!empty($this->guru->no_wa)) {                    
+                if (!empty($this->guru->no_wa)) {
                     SendWhatsAppNotification::dispatch($this->guru->no_wa, $pesanWa);
                 }
 
                 $pengaturan = Pengaturan::first();
                 if (!empty($pengaturan?->wa_kepsek)) {
-                    SendWhatsAppNotification::dispatch($pengaturan->wa_kepsek, $pesan);
+                    SendWhatsAppNotification::dispatch($pengaturan->wa_kepsek, $pesanWa);
                 }
             } catch (\Exception $e) {
                 \Log::error('Gagal mengirim notifikasi WhatsApp: ' . $e->getMessage());
             }
 
             $this->displayCustomNotification('Presensi Masuk Berhasil!', 'Anda telah berhasil presensi masuk untuk jadwal di kelas ' . $firstClassName . '.', 'success');
-            
+
             $this->closeModal();
 
         } catch (\Exception $e) {
@@ -317,23 +311,16 @@ class GuruPresensiMasuk extends Component
 
     private function isSelectionSequential(Collection $schedules): bool
     {
-        if ($schedules->count() <= 1) {
-            return true;
-        }
-        $isSequential = true;
         $previousJamOrder = null;
-        foreach ($schedules as $index => $schedule) {
-            if ($index === 0) {
-                $previousJamOrder = $schedule->jam->ke;
-                continue;
-            }
-            if ($schedule->jam->ke !== ($previousJamOrder + 1)) {
-                $isSequential = false;
-                break;
+
+        foreach ($schedules->values() as $schedule) {
+            if (!is_null($previousJamOrder) && $schedule->jam->ke !== ($previousJamOrder + 1)) {
+                return false;
             }
             $previousJamOrder = $schedule->jam->ke;
         }
-        return $isSequential;
+
+        return true;
     }
 
     public function closeModal(): void

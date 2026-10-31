@@ -11,6 +11,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Models\Pengaturan;
+use App\Jobs\SendWhatsAppNotification;
+use App\Services\HonorGuruService;
 
 class GuruPresensiKeluar extends Component
 {
@@ -199,7 +201,6 @@ class GuruPresensiKeluar extends Component
         // $this->displayCustomNotification('Jadwal dipilih.', 'Jadwal untuk kelas ' . $firstClassName . ' sudah valid untuk presensi keluar.', 'success');
     }
 
-    // --- PENTING: Implementasi presensiKeluar() ---
     public function presensiKeluar(): void
     {
         $this->clearNotification();
@@ -217,17 +218,16 @@ class GuruPresensiKeluar extends Component
         }
 
         $sortedSelected = $this->jadwalHariIni->filter(fn($schedule) => in_array($schedule->id, $this->selectedSchedules))
-                                             ->sortBy(fn($schedule) => $schedule->jam->ke);
-        
+                                            ->sortBy(fn($schedule) => $schedule->jam->ke);
+
         // Re-validasi kelas sama dan jam berurutan
-        // UBAH 3a: bandingkan himpunan kelas sesi, bukan id_kelas
         if ($sortedSelected->isEmpty() || !$sortedSelected->every(fn($s) => $s->idKelasSesi() === $sortedSelected->first()->idKelasSesi()) || !$this->isSelectionSequential($sortedSelected)) {
             $this->displayCustomNotification('Gagal Presensi.', 'Pilihan jadwal tidak valid atau tidak berurutan/sama kelas.', 'danger');
             $this->selectedSchedules = [];
             return;
         }
 
-        // Re-validate that all selected schedules are clocked in and NOT clocked out
+        // Semua jadwal yang dipilih harus sudah masuk dan belum keluar
         $notYetClockedIn = $sortedSelected->first(fn($s) => is_null($s->jam_in));
         $alreadyClockedOut = $sortedSelected->first(fn($s) => !is_null($s->jam_out));
         if ($notYetClockedIn || $alreadyClockedOut) {
@@ -235,26 +235,18 @@ class GuruPresensiKeluar extends Component
             return;
         }
 
-
         $firstSelectedSchedule = $sortedSelected->first();
-        // UBAH 3b: nama kelas untuk notifikasi, mis. "X A + X B" untuk sesi gabungan
         $firstClassName = $firstSelectedSchedule->namaKelasTampil();
 
         try {
             $now = Carbon::now();
-            $lastJamSelesai = Carbon::parse($sortedSelected->last()->jam->jam_selesai); // Ambil jam selesai dari jadwal terakhir yang dipilih
-            $statusOut = ($now->greaterThanOrEqualTo($lastJamSelesai)) ? 'pulang' : 'bolos'; // Status berdasarkan jam selesai
 
-            foreach ($sortedSelected as $scheduleToUpdate) {
-                $scheduleToUpdate->update([
-                    'jam_out' => $now,
-                    'status_out' => $statusOut,
-                ]);
-            }
+            // Status, durasi bolos, potongan, dan upah dihitung & disimpan oleh service
+            $statusOut = app(HonorGuruService::class)->catatKeluar($sortedSelected, $now);
 
-            // === Kirim Notifikasi Telegram Kepala Sekolah & Guru ===
+            // Notifikasi ke Telegram Kepala Sekolah & Guru
             try {
-                $pengaturan = \App\Models\Pengaturan::first();
+                $pengaturan = Pengaturan::first();
                 if ($pengaturan && $pengaturan->token_telegram) {
                     $pesan = "📢 *Presensi Keluar Guru*\n"
                         . "Nama: *{$this->guru->nama_guru}*\n"
@@ -262,7 +254,6 @@ class GuruPresensiKeluar extends Component
                         . "Jam Keluar: " . $now->format('H:i:s') . "\n"
                         . "Status: *" . ucfirst($statusOut) . "*";
 
-                    // Kirim ke Kepala Sekolah jika tersedia
                     if (!empty($pengaturan->telegram_kepsek)) {
                         $urlKepsek = "https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage"
                             . "?chat_id={$pengaturan->telegram_kepsek}"
@@ -271,7 +262,6 @@ class GuruPresensiKeluar extends Component
                         @file_get_contents($urlKepsek);
                     }
 
-                    // Kirim ke Guru yang melakukan presensi jika tersedia
                     if (!empty($this->guru->telegram_chat_id)) {
                         $urlGuru = "https://api.telegram.org/bot{$pengaturan->token_telegram}/sendMessage"
                             . "?chat_id={$this->guru->telegram_chat_id}"
@@ -284,12 +274,13 @@ class GuruPresensiKeluar extends Component
                 \Log::error('Gagal mengirim notifikasi Telegram: ' . $e->getMessage());
             }
 
+            // Notifikasi WhatsApp
             try {
-                $pesanWa = "📢 Presensi Masuk Guru\n"
+                $pesanWa = "📢 Presensi Keluar Guru\n"
                     . "Nama: {$this->guru->nama_guru}\n"
                     . "Kelas: {$firstClassName}\n"
-                    . "Waktu: " . $now->format('H:i:s') . "\n"
-                    . "Status: " . ucfirst($statusIn);
+                    . "Jam Keluar: " . $now->format('H:i:s') . "\n"
+                    . "Status: " . ucfirst($statusOut);
 
                 if (!empty($this->guru->no_wa)) {
                     SendWhatsAppNotification::dispatch($this->guru->no_wa, $pesanWa);
@@ -304,8 +295,18 @@ class GuruPresensiKeluar extends Component
             }
 
             $this->displayCustomNotification('Presensi Keluar Berhasil!', 'Anda telah berhasil presensi keluar untuk jadwal di kelas ' . $firstClassName . '.', 'success');
-            
-            $this->closeModal(); // Menutup modal dan mereset RFID input
+
+            // Peringatan bila masih ada jadwal aktif yang tidak dipilih
+            $masihAktif = $this->jadwalHariIni->count() - $sortedSelected->count();
+            if ($masihAktif > 0) {
+                $this->displayCustomNotification(
+                    'Perhatian.',
+                    $masihAktif . ' jadwal lain masih aktif (belum presensi keluar) sehingga upahnya belum dihitung.',
+                    'warning'
+                );
+            }
+
+            $this->closeModal();
 
         } catch (\Exception $e) {
             $this->displayCustomNotification('Terjadi Kesalahan.', 'Gagal menyimpan presensi keluar: ' . $e->getMessage(), 'danger');
@@ -314,23 +315,16 @@ class GuruPresensiKeluar extends Component
 
     private function isSelectionSequential(Collection $schedules): bool
     {
-        if ($schedules->count() <= 1) {
-            return true;
-        }
-        $isSequential = true;
         $previousJamOrder = null;
-        foreach ($schedules as $index => $schedule) {
-            if ($index === 0) {
-                $previousJamOrder = $schedule->jam->ke;
-                continue;
-            }
-            if ($schedule->jam->ke !== ($previousJamOrder + 1)) {
-                $isSequential = false;
-                break;
+
+        foreach ($schedules->values() as $schedule) {
+            if (!is_null($previousJamOrder) && $schedule->jam->ke !== ($previousJamOrder + 1)) {
+                return false;
             }
             $previousJamOrder = $schedule->jam->ke;
         }
-        return $isSequential;
+
+        return true;
     }
 
     public function closeModal(): void
