@@ -12,6 +12,8 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Actions\Action;
 use App\Models\User;
+use Filament\Forms\Components\Fieldset;
+use Filament\Forms\Components\View;
 
 class AppSettings extends Page implements HasForms
 {
@@ -120,38 +122,53 @@ class AppSettings extends Page implements HasForms
     {
         return $form
             ->schema([
-                TextInput::make('nama_aplikasi')
-                    ->label('Nama Aplikasi')
-                    ->maxLength(255)
-                    ->placeholder('Contoh: Sistem Presensi RFID Sekolah'),
+                Fieldset::make('Pengaturan Umum')
+                    ->schema([
+                        TextInput::make('nama_aplikasi')
+                            ->label('Nama Aplikasi')
+                            ->maxLength(255)
+                            ->placeholder('Contoh: Sistem Presensi RFID Sekolah'),
 
-                TextInput::make('token_telegram')
-                    ->label('Token Telegram Bot (Opsional)')
-                    ->maxLength(255)
-                    ->placeholder('Masukkan token bot Telegram Anda'),
+                        TextInput::make('upah_perjam')
+                            ->label('Upah Per Jam Guru (Rp)')
+                            ->numeric()
+                            ->default(0)
+                            ->minValue(0)
+                            ->required()
+                            ->helperText('Digunakan untuk perhitungan honor guru'),
+                    ])
+                    ->columns(2),
 
-                TextInput::make('telegram_kepsek')
-                    ->label('Chat ID Telegram Kepala Sekolah (Opsional)')
-                    ->maxLength(255)
-                    ->placeholder('Contoh: 123456789'),
+                Fieldset::make('Telegram API')
+                    ->schema([
+                        TextInput::make('token_telegram')
+                            ->label('Token Telegram Bot (Opsional)')
+                            ->maxLength(255)
+                            ->placeholder('Masukkan token bot Telegram Anda'),
 
-                TextInput::make('upah_perjam')
-                    ->label('Upah Per Jam Guru (Rp)')
-                    ->numeric()
-                    ->default(0)
-                    ->minValue(0)
-                    ->required()
-                    ->helperText('Digunakan untuk perhitungan honor guru'),
+                        TextInput::make('telegram_kepsek')
+                            ->label('Chat ID Telegram Kepala Sekolah (Opsional)')
+                            ->maxLength(255)
+                            ->placeholder('Contoh: 123456789'),
+                    ])
+                    ->columns(2),
 
-                TextInput::make('fonnte_token')
-                    ->label('Token Device')
-                    ->maxLength(255)
-                    ->placeholder('Token device dari dashboard Fonnte'),
+                Fieldset::make('Whatsapp API')
+                    ->schema([
+                        TextInput::make('fonnte_token')
+                            ->label('Token Device')
+                            ->maxLength(255)
+                            ->placeholder('Token device dari dashboard Fonnte'),
 
-                TextInput::make('wa_kepsek')
-                    ->label('Nomor WA Kepala Sekolah (Opsional)')
-                    ->maxLength(255)
-                    ->placeholder('Contoh: 6281234567890'),
+                        TextInput::make('wa_kepsek')
+                            ->label('Nomor WA Kepala Sekolah (Opsional)')
+                            ->maxLength(255)
+                            ->placeholder('Contoh: 6281234567890'),
+
+                        View::make('filament.pages.partials.whatsapp-connection')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
             ])
             ->statePath('data');
     }
