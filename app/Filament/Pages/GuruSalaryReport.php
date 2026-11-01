@@ -2,31 +2,36 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Concerns\GayaTabelLaporan;
+use App\Models\Guru;
+use App\Models\Pengaturan;
+use App\Models\PresensiGuru;
+use Carbon\Carbon;
+use Filament\Forms;
+use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Pages\Page;
-use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Form;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
-use App\Models\PresensiGuru;
-use App\Models\Pengaturan;
-use App\Models\Guru;
-use Filament\Forms\Components\Fieldset;
 use Filament\Notifications\Notification;
-use Illuminate\Support\Facades\Http; // Tambahkan ini untuk HTTP Client
-use App\Models\User;
+use Filament\Pages\Page;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Concerns\InteractsWithTable;
+use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Filament\Tables\Columns\TextColumn;
 
-class GuruSalaryReport extends Page implements HasForms
+class GuruSalaryReport extends Page implements HasForms, HasTable
 {
+    use InteractsWithForms, InteractsWithTable, GayaTabelLaporan;
 
     public static function canAccess(array $parameters = []): bool
     {
         // Hanya user dengan role 'admin' yang bisa mengakses halaman ini
         return auth()->user()->role === 'admin';
     }
-    
-    use InteractsWithForms;
 
     protected static ?string $navigationIcon = 'heroicon-o-currency-dollar';
     protected static ?string $navigationLabel = 'Laporan Gaji Guru';
@@ -36,111 +41,148 @@ class GuruSalaryReport extends Page implements HasForms
     protected static string $view = 'filament.pages.guru-salary-report';
 
     public ?array $data = [];
-    public $startDate;
-    public $endDate;
-    public $reportData = [];
-    public $upahPerJam = 0;
 
     public function mount(): void
     {
-        $this->form->fill();
-        $pengaturan = Pengaturan::first();
-        if ($pengaturan) {
-            $this->upahPerJam = $pengaturan->upah_perjam;
-        }
+        $this->data['dateStart'] = Carbon::now()->startOfMonth()->toDateString();
+        $this->data['dateEnd'] = Carbon::now()->endOfMonth()->toDateString();
+        $this->form->fill($this->data);
+    }
+
+    public function updatedDataDateStart()
+    {
+        $this->dispatch('refreshTable');
+    }
+
+    public function updatedDataDateEnd()
+    {
+        $this->dispatch('refreshTable');
     }
 
     public function form(Form $form): Form
     {
         return $form
             ->schema([
-                Fieldset::make('Rentang Tanggal')
+                Fieldset::make('Filter Laporan')
                     ->schema([
-                        DatePicker::make('startDate')
+                        Forms\Components\DatePicker::make('dateStart')
                             ->label('Tanggal Mulai')
                             ->required()
-                            ->default(now()->startOfMonth())
-                            ->live()
-                            ->columnSpan(1),
-                        DatePicker::make('endDate')
-                            ->label('Tanggal Akhir')
+                            ->live(onBlur: true),
+                        Forms\Components\DatePicker::make('dateEnd')
+                            ->label('Tanggal Selesai')
                             ->required()
-                            ->default(now()->endOfMonth())
-                            ->live()
-                            ->columnSpan(1),
+                            ->afterOrEqual('dateStart')
+                            ->live(onBlur: true),
                     ])
                     ->columns(2),
             ])
-            ->statePath('data');
+            ->statePath('data')
+            ->live();
     }
 
-    public function generateReport(): void
+    protected function getTableQuery(): Builder
     {
-        $this->validate();
+        $this->validate([
+            'data.dateStart' => 'required|date',
+            'data.dateEnd' => 'required|date|after_or_equal:data.dateStart',
+        ]);
 
-        $this->startDate = Carbon::parse($this->data['startDate']);
-        $this->endDate = Carbon::parse($this->data['endDate']);
+        $t = 'tbl_presensi_guru';
+        $status = "{$t}.status_in";
+        $belumBayar = "({$t}.paid IS NULL OR {$t}.paid = 0)";
 
-        // Ambil data presensi yang belum dibayar untuk guru tertentu
-        // Sekarang kita ambil semua presensi untuk rentang tanggal, lalu filter di PHP
-        $allPresensiInPeriod = PresensiGuru::whereBetween('tanggal_jadwal', [$this->startDate, $this->endDate])
-            ->get();
-
-
-        $guruIds = $allPresensiInPeriod->pluck('id_guru')->unique();
-        $gurus = Guru::whereIn('id', $guruIds)->get()->keyBy('id');
-
-        $this->reportData = [];
-
-        foreach ($guruIds as $guruId) {
-            $guru = $gurus->get($guruId);
-            if (!$guru) {
-                continue;
-            }
-
-            // Filter presensi hanya untuk guru ini
-            $presensiForThisGuru = $allPresensiInPeriod->where('id_guru', $guruId);
-
-            $kehadiranHadirTerlambat = $presensiForThisGuru
-                ->whereIn('status_in', ['hadir', 'terlambat'])
-                ->count();
-
-            $paidCount = $presensiForThisGuru
-                ->where('paid', 1)
-                ->count();
-
-            $unpaidCount = $presensiForThisGuru
-                ->where('paid', 0)
-                ->whereIn('status_in', ['hadir', 'terlambat'])
-                ->count();
-
-            $totalGaji = $kehadiranHadirTerlambat * $this->upahPerJam;
-            $terbayar = $paidCount * $this->upahPerJam;
-            $tertunda = $unpaidCount * $this->upahPerJam;
-
-            $unpaidPresensiIds = $presensiForThisGuru
-                ->where('paid', 0)
-                ->whereIn('status_in', ['hadir', 'terlambat'])
-                ->pluck('id')
-                ->toArray();
-            
-            $this->reportData[] = [
-                'id_guru' => $guru->id, // Tambahkan id_guru untuk keperluan pengiriman Telegram
-                'nama_guru' => $guru->nama_guru,
-                'kehadiran' => $kehadiranHadirTerlambat,
-                'upah' => $this->upahPerJam,
-                'total_gaji' => $totalGaji,
-                'terbayar' => $terbayar,
-                'tertunda' => $tertunda,
-                'unpaid_presensi_ids' => $unpaidPresensiIds,
-                'has_unpaid' => $unpaidCount > 0,
-            ];
-        }
+        // Semua angka diambil dari nilai yang sudah tersimpan saat presensi/izin/libur dicatat
+        return PresensiGuru::query()
+            ->select(
+                "{$t}.id_guru as id",
+                DB::raw('MAX(tbl_guru.nama_guru) as nama_guru'),
+                DB::raw("SUM(CASE WHEN {$status} NOT IN ('izin','sakit','libur') AND {$t}.upah_dasar > 0 THEN 1 ELSE 0 END) as jam_mengajar"),
+                DB::raw("SUM(CASE WHEN {$status} IN ('izin','sakit') THEN 1 ELSE 0 END) as jam_izin"),
+                DB::raw("SUM(CASE WHEN {$status} = 'libur' THEN 1 ELSE 0 END) as jam_libur"),
+                DB::raw("SUM(CASE WHEN {$t}.jam_in IS NOT NULL AND {$t}.jam_out IS NULL AND COALESCE({$status}, '') <> 'tidak_diikuti' THEN 1 ELSE 0 END) as belum_keluar"),
+                DB::raw("SUM({$t}.upah_dasar) as upah_kotor"),
+                DB::raw("SUM(CASE WHEN {$status} NOT IN ('izin','sakit','libur') THEN {$t}.upah_dasar - {$t}.total_upah ELSE 0 END) as potongan_presensi"),
+                DB::raw("SUM(CASE WHEN {$status} IN ('izin','sakit') THEN {$t}.upah_dasar - {$t}.total_upah ELSE 0 END) as potongan_izin"),
+                DB::raw("SUM({$t}.total_upah) as total_gaji"),
+                DB::raw("SUM(CASE WHEN {$t}.paid = 1 THEN {$t}.total_upah ELSE 0 END) as terbayar"),
+                DB::raw("SUM(CASE WHEN {$belumBayar} THEN {$t}.total_upah ELSE 0 END) as tertunda")
+            )
+            ->leftJoin('tbl_guru', "{$t}.id_guru", '=', 'tbl_guru.id')
+            ->whereBetween("{$t}.tanggal_jadwal", [$this->data['dateStart'], $this->data['dateEnd']])
+            ->groupBy("{$t}.id_guru");
     }
 
-    public function markAsPaid(int $guruId, array $presensiIds, array $reportItemData): void
+    public function table(Table $table): Table
     {
-        if (empty($presensiIds)) {
+        return $table
+            ->query(fn () => $this->getTableQuery())
+            ->columns([
+                static::kolomNomor(),
+                static::kolomNama(),
+                static::kolomAngka('jam_mengajar', 'Jam Mengajar', 'success'),
+                static::kolomAngka('jam_izin', 'Jam Izin/Sakit', 'info'),
+                static::kolomAngka('jam_libur', 'Jam Libur'),
+                static::kolomAngka('belum_keluar', 'Belum Keluar', 'warning'),
+                static::kolomRupiah('upah_kotor', 'Upah Dasar'),
+                static::kolomRupiah('potongan_presensi', 'Potongan Presensi', 'danger'),
+                static::kolomRupiah('potongan_izin', 'Potongan Izin', 'danger'),
+                static::kolomRupiah('total_gaji', 'Total Gaji')->weight('bold'),
+                static::kolomRupiah('terbayar', 'Terbayar', 'success'),
+                static::kolomRupiah('tertunda', 'Tertunda', 'warning'),
+                TextColumn::make('status_bayar')
+                    ->label('Status')
+                    ->state(fn ($record) => match (true) {
+                        (int) $record->tertunda > 0 => 'Belum Dibayar',
+                        (int) $record->total_gaji > 0 => 'Sudah Dibayar',
+                        default => '-',
+                    })
+                    ->badge()
+                    ->color(fn (string $state) => match ($state) {
+                        'Belum Dibayar' => 'warning',
+                        'Sudah Dibayar' => 'success',
+                        default => 'gray',
+                    }),
+            ])
+            ->filters([])
+            ->actions([
+                Action::make('bayar')
+                    ->label('Bayar & Kirim Slip')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('success')
+                    ->size('sm')
+                    ->visible(fn ($record) => (int) $record->tertunda > 0)
+                    ->requiresConfirmation()
+                    ->modalHeading('Bayar Gaji & Kirim Slip')
+                    ->modalDescription(fn ($record) => 'Apakah Anda yakin ingin menandai gaji '
+                        . $record->nama_guru . ' sebesar Rp ' . number_format((int) $record->tertunda, 0, ',', '.')
+                        . ' sebagai terbayar dan mengirim slip gaji melalui Telegram?'
+                        . ((int) $record->belum_keluar > 0
+                            ? ' Perhatian: ada ' . (int) $record->belum_keluar . ' jam yang belum presensi keluar dan belum dihitung.'
+                            : ''))
+                    ->modalSubmitActionLabel('Ya, Bayar')
+                    ->action(fn ($record) => $this->bayarGuru((int) $record->id)),
+            ])
+            ->bulkActions([])
+            ->emptyStateHeading('Tidak ada data presensi guru untuk rentang tanggal yang dipilih.');
+    }
+
+    protected function bayarGuru(int $idGuru): void
+    {
+        $this->validate([
+            'data.dateStart' => 'required|date',
+            'data.dateEnd' => 'required|date|after_or_equal:data.dateStart',
+        ]);
+
+        // Baris yang sudah final (upah dasar terisi) dan belum dibayar
+        $rows = PresensiGuru::query()
+            ->where('id_guru', $idGuru)
+            ->whereBetween('tanggal_jadwal', [$this->data['dateStart'], $this->data['dateEnd']])
+            ->where(fn ($q) => $q->whereNull('paid')->orWhere('paid', 0))
+            ->where('upah_dasar', '>', 0)
+            ->get(['id', 'status_in', 'upah_dasar', 'total_upah']);
+
+        if ($rows->isEmpty()) {
             Notification::make()
                 ->title('Tidak Ada Presensi yang Belum Dibayar')
                 ->body('Tidak ada presensi yang perlu dibayar untuk guru ini dalam rentang waktu yang dipilih.')
@@ -149,76 +191,90 @@ class GuruSalaryReport extends Page implements HasForms
             return;
         }
 
+        // Slip dihitung dari baris yang benar-benar dibayar sekarang
+        $upahDasar = (int) $rows->sum('upah_dasar');
+        $total = (int) $rows->sum('total_upah');
+        $slip = [
+            'jam_mengajar' => $rows->reject(fn ($r) => in_array($r->status_in, ['izin', 'sakit', 'libur']))->count(),
+            'jam_izin' => $rows->whereIn('status_in', ['izin', 'sakit'])->count(),
+            'jam_libur' => $rows->where('status_in', 'libur')->count(),
+            'upah_dasar' => $upahDasar,
+            'potongan' => $upahDasar - $total,
+            'total' => $total,
+        ];
+
         try {
-            DB::beginTransaction();
-
-            PresensiGuru::whereIn('id', $presensiIds)
-                        ->where('id_guru', $guruId)
-                        ->update(['paid' => 1]);
-
-            DB::commit();
-
-            Notification::make()
-                ->title('Gaji Berhasil Dibayar')
-                ->body('Gaji untuk guru ini telah berhasil ditandai sebagai terbayar.')
-                ->success()
-                ->send();
-
-            // Panggil fungsi pengirim Telegram setelah pembayaran berhasil
-            $this->sendTelegramMessage($guruId, $reportItemData);
-
-            // Refresh laporan setelah pembayaran
-            $this->generateReport();
-
-        } catch (\Exception $e) {
-            DB::rollBack();
+            DB::transaction(function () use ($rows, $idGuru) {
+                PresensiGuru::whereIn('id', $rows->pluck('id'))
+                    ->where('id_guru', $idGuru)
+                    ->update(['paid' => 1]);
+            });
+        } catch (\Throwable $e) {
             Notification::make()
                 ->title('Gagal Membayar Gaji')
-                ->body('Terjadi kesalahan saat mencoba menandai gaji sebagai terbayar: ' . $e->getMessage())
+                ->body('Terjadi kesalahan saat menandai gaji sebagai terbayar: ' . $e->getMessage())
                 ->danger()
                 ->send();
+            return;
         }
+
+        Notification::make()
+            ->title('Gaji Berhasil Dibayar')
+            ->body('Gaji untuk guru ini telah berhasil ditandai sebagai terbayar.')
+            ->success()
+            ->send();
+
+        $this->kirimSlipTelegram($idGuru, $slip);
     }
 
-    // Metode baru untuk mengirim pesan Telegram
-    private function sendTelegramMessage(int $guruId, array $reportItemData): void
+    private function kirimSlipTelegram(int $idGuru, array $slip): void
     {
-        $guru = Guru::find($guruId);
+        $guru = Guru::find($idGuru);
 
         if (!$guru || empty($guru->telegram_chat_id)) {
             Notification::make()
                 ->title('Gagal Mengirim Telegram')
-                ->body("Chat ID Telegram untuk guru {$guru->nama_guru} tidak ditemukan atau kosong.")
+                ->body('Chat ID Telegram untuk guru ' . ($guru->nama_guru ?? '-') . ' tidak ditemukan atau kosong.')
                 ->warning()
                 ->send();
             return;
         }
 
-        $namaBulan = Carbon::parse($this->startDate)->translatedFormat('F Y'); // Menggunakan nama bulan dan tahun dari startDate
-
-        $message = "Slip gaji bulan *$namaBulan*.\n";
-        $message .= "Nama: *{$guru->nama_guru}*\n";
-        $message .= "Kehadiran: *{$reportItemData['kehadiran']}*\n";
-        $message .= "Upah per jam: *Rp " . number_format($reportItemData['upah'], 0, ',', '.') . "*\n";
-        $message .= "Total gaji: *Rp " . number_format($reportItemData['total_gaji'], 0, ',', '.') . "*";
-
-        $botToken = env('TELEGRAM_BOT_TOKEN');
-        $chatId = $guru->telegram_chat_id;
+        // Token dari Pengaturan Aplikasi; .env sebagai cadangan
+        $botToken = Pengaturan::first()?->token_telegram ?: env('TELEGRAM_BOT_TOKEN');
 
         if (empty($botToken)) {
             Notification::make()
                 ->title('Gagal Mengirim Telegram')
-                ->body('Token Bot Telegram belum diatur di file .env.')
+                ->body('Token Bot Telegram belum diatur di Pengaturan Aplikasi maupun file .env.')
                 ->danger()
                 ->send();
             return;
         }
 
+        $rupiah = fn (int $n) => 'Rp ' . number_format($n, 0, ',', '.');
+        $periode = Carbon::parse($this->data['dateStart'])->translatedFormat('F Y');
+
+        $pesan = "Slip gaji bulan *{$periode}*.\n";
+        $pesan .= "Nama: *{$guru->nama_guru}*\n";
+        $pesan .= "Jam mengajar: *{$slip['jam_mengajar']}*\n";
+        if ($slip['jam_izin'] > 0) {
+            $pesan .= "Jam izin/sakit: *{$slip['jam_izin']}*\n";
+        }
+        if ($slip['jam_libur'] > 0) {
+            $pesan .= "Jam libur: *{$slip['jam_libur']}*\n";
+        }
+        $pesan .= "Upah dasar: *" . $rupiah($slip['upah_dasar']) . "*\n";
+        if ($slip['potongan'] > 0) {
+            $pesan .= "Potongan: *" . $rupiah($slip['potongan']) . "*\n";
+        }
+        $pesan .= "Total gaji: *" . $rupiah($slip['total']) . "*";
+
         try {
             $response = Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
-                'chat_id' => $chatId,
-                'text' => $message,
-                'parse_mode' => 'Markdown', // Menggunakan Markdown untuk bold
+                'chat_id' => $guru->telegram_chat_id,
+                'text' => $pesan,
+                'parse_mode' => 'Markdown',
             ]);
 
             if ($response->successful()) {

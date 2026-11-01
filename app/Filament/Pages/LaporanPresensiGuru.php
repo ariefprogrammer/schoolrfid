@@ -23,6 +23,7 @@ use Filament\Forms;
 use Livewire\Attributes\On;
 use App\Models\User;
 use App\Models\Jam;
+use App\Filament\Concerns\GayaTabelLaporan;
 
 class LaporanPresensiGuru extends Page implements HasForms, HasTable
 {
@@ -40,7 +41,7 @@ class LaporanPresensiGuru extends Page implements HasForms, HasTable
         ];
     }
 
-    use InteractsWithForms, InteractsWithTable;
+    use InteractsWithForms, InteractsWithTable, GayaTabelLaporan;
     
     protected static string $resource = PresensiGuruResource::class;
     protected static string $view = 'filament.resources.absensi-resource.pages.absensi.laporan-presensi-guru';
@@ -157,31 +158,25 @@ class LaporanPresensiGuru extends Page implements HasForms, HasTable
         return $table
             ->query(fn () => $this->getTableQuery())
             ->columns([
-                TextColumn::make('nama_guru')->label('Nama Guru')->sortable()->searchable(),
-                TextColumn::make('hadir')->label('Hadir')->sortable(),
-                TextColumn::make('terlambat')->label('Terlambat')->sortable(),
-                TextColumn::make('pulang')->label('Pulang')->sortable(),
-                TextColumn::make('bolos')->label('Bolos')->sortable(),
-                TextColumn::make('izin')->label('Izin')->sortable(),
-                TextColumn::make('sakit')->label('Sakit')->sortable(),
-                TextColumn::make('libur')->label('Libur')->sortable(),
-                TextColumn::make('tidak_diikuti')->label('Tidak Diikuti')->sortable(),
-                TextColumn::make('alpa')->label('Alpa')->sortable(),
-                TextColumn::make('belum_keluar')->label('Belum Keluar')->sortable(),
-                TextColumn::make('menit_terlambat')->label('Menit Terlambat')->sortable(),
-                TextColumn::make('menit_bolos')->label('Menit Bolos')->sortable(),
-                TextColumn::make('potongan')
-                    ->label('Potongan')
-                    ->formatStateUsing(fn ($state) => 'Rp ' . number_format((int) $state, 0, ',', '.'))
-                    ->sortable(),
-                TextColumn::make('honor')
-                    ->label('Total Honor')
-                    ->formatStateUsing(fn ($state) => 'Rp ' . number_format((int) $state, 0, ',', '.'))
-                    ->sortable(),
-                TextColumn::make('target')->label('Target')->sortable(),
+                static::kolomNomor(),
+                static::kolomNama(),
+                static::kolomAngka('hadir', 'Hadir', 'success'),
+                static::kolomAngka('terlambat', 'Terlambat', 'warning'),
+                static::kolomAngka('pulang', 'Pulang', 'success'),
+                static::kolomAngka('bolos', 'Bolos', 'danger'),
+                static::kolomAngka('izin', 'Izin', 'info'),
+                static::kolomAngka('sakit', 'Sakit', 'info'),
+                static::kolomAngka('libur', 'Libur'),
+                static::kolomAngka('tidak_diikuti', 'Tidak Diikuti', 'warning'),
+                static::kolomAngka('alpa', 'Alpa', 'danger'),
+                static::kolomAngka('belum_keluar', 'Belum Keluar', 'warning'),
+                static::kolomAngka('menit_terlambat', 'Menit Terlambat', 'warning'),
+                static::kolomAngka('menit_bolos', 'Menit Bolos', 'danger'),
+                static::kolomAngka('target', 'Target', 'primary'),
             ])
             ->filters([])
             ->actions([])
-            ->bulkActions([]);
+            ->bulkActions([])
+            ->emptyStateHeading('Tidak ada data presensi guru untuk rentang tanggal yang dipilih.');
     }
 }
