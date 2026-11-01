@@ -27,6 +27,7 @@ class PresensiGuru extends Model
         'jam_out',
         'status_out',
         'tanggal_jadwal',
+        'paid',
 
         'durasi_terlambat',
         'durasi_bolos',
@@ -45,6 +46,7 @@ class PresensiGuru extends Model
         'tanggal_jadwal' => 'date',
         'jam_in' => 'datetime',
         'jam_out' => 'datetime',
+        'paid' => 'boolean',
     ];
 
     // Relasi ke model-model terkait (berguna untuk pelaporan nanti)
