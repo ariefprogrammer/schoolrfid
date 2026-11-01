@@ -89,6 +89,7 @@ class LaporanPresensiGuru extends Page implements HasForms, HasTable
             WHEN tbl_presensi_guru.status_in = 'izin' THEN 'izin'
             WHEN tbl_presensi_guru.status_in = 'sakit' THEN 'sakit'
             WHEN ({$diikuti}) THEN IF(tbl_presensi_guru.status_in = 'terlambat', 'terlambat', 'hadir')
+            WHEN tbl_presensi_guru.jam_in IS NOT NULL THEN 'tidak_diikuti'
             ELSE 'alpa'
         END";
 
@@ -107,6 +108,7 @@ class LaporanPresensiGuru extends Page implements HasForms, HasTable
                 DB::raw($hitung("({$kategori}) = 'izin'") . ' as izin'),
                 DB::raw($hitung("({$kategori}) = 'sakit'") . ' as sakit'),
                 DB::raw($hitung("({$kategori}) = 'libur'") . ' as libur'),
+                DB::raw($hitung("({$kategori}) = 'tidak_diikuti'") . ' as tidak_diikuti'),
                 DB::raw($hitung("({$kategori}) = 'alpa'") . ' as alpa'),
                 DB::raw($hitung("({$kategori}) IN ('hadir','terlambat') AND tbl_presensi_guru.jam_out IS NULL") . ' as belum_keluar'),
                 DB::raw("SUM(CASE WHEN ({$kategori}) = 'terlambat' THEN tbl_presensi_guru.durasi_terlambat ELSE 0 END) as menit_terlambat"),
@@ -163,6 +165,7 @@ class LaporanPresensiGuru extends Page implements HasForms, HasTable
                 TextColumn::make('izin')->label('Izin')->sortable(),
                 TextColumn::make('sakit')->label('Sakit')->sortable(),
                 TextColumn::make('libur')->label('Libur')->sortable(),
+                TextColumn::make('tidak_diikuti')->label('Tidak Diikuti')->sortable(),
                 TextColumn::make('alpa')->label('Alpa')->sortable(),
                 TextColumn::make('belum_keluar')->label('Belum Keluar')->sortable(),
                 TextColumn::make('menit_terlambat')->label('Menit Terlambat')->sortable(),

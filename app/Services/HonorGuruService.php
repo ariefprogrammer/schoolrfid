@@ -100,19 +100,26 @@ class HonorGuruService
 
         foreach ($rows as $i => $row) {
             $ini = $i === $idxAcuan;
+            $terlewat = $idxAcuan === null || $i < $idxAcuan; // jam sudah berakhir sebelum guru masuk
 
             $statusRow = match (true) {
-                $idxAcuan === null || $i < $idxAcuan => 'terlambat', // jam yang sudah lewat sebelum guru masuk
-                $ini => $status,                                      // jam acuan, sesuai batas
-                default => 'hadir',                                   // jam berikutnya
+                $terlewat => 'tidak_diikuti',
+                $ini => $status,
+                default => 'hadir',
             };
 
-            $row->update([
+            $data = [
                 'jam_in' => $jamIn,
                 'status_in' => $statusRow,
                 'durasi_terlambat' => $ini ? $menit : 0,
                 'potongan_terlambat' => $ini ? $potongan : 0,
-            ]);
+            ];
+
+            if ($terlewat) {
+                $data['status_out'] = 'tidak_diikuti';
+            }
+
+            $row->update($data);
         }
 
         return $status; // status jam acuan, dipakai untuk notifikasi
@@ -127,7 +134,6 @@ class HonorGuruService
 
         // Acuan bolos: jam terakhir yang benar-benar diikuti
         $acuan = $diikuti->last() ?? $rows->last();
-        $idxAcuan = $rows->search(fn ($r) => $r->is($acuan));
 
         $selesai = $this->waktu($acuan, 'jam_selesai');
         $menit = $jamOut->lessThan($selesai) ? (int) $jamOut->diffInMinutes($selesai, true) : 0;
@@ -138,27 +144,33 @@ class HonorGuruService
         // Total potongan dibagi ke jam yang diikuti, masing-masing maksimal sebesar upahnya
         $sisa = (int) $rows->sum('potongan_terlambat') + $potonganBolos;
 
-        foreach ($rows as $i => $row) {
+        foreach ($rows as $row) {
             $ikut = $diikuti->contains(fn ($r) => $r->is($row));
             $dipotong = $ikut ? min($sisa, $upah) : 0;
             $sisa -= $dipotong;
-            $ini = $i === $idxAcuan;
+            $ini = $row->is($acuan);
 
             $statusRow = match (true) {
-                $diikuti->isEmpty() => 'bolos',  // tidak ada jam yang diikuti
-                $ini => $status,                  // jam acuan, sesuai batas
-                $i > $idxAcuan => 'bolos',        // jam yang belum mulai saat guru keluar
-                default => 'pulang',              // jam sebelumnya
+                ! $ikut => 'tidak_diikuti', // jam sebelum guru masuk, atau belum mulai saat guru keluar
+                $ini => $status,             // jam acuan, sesuai batas
+                default => 'pulang',         // jam diikuti lainnya
             };
 
-            $row->update([
+            $data = [
                 'jam_out' => $jamOut,
                 'status_out' => $statusRow,
                 'durasi_bolos' => $ini ? $menit : 0,
                 'potongan_bolos' => $ini ? $potonganBolos : 0,
                 'upah_dasar' => $ikut ? $upah : 0,
                 'total_upah' => $ikut ? $upah - $dipotong : 0,
-            ]);
+            ];
+
+            // Jam di belakang yang tadinya berlabel 'hadir' saat masuk, ternyata tidak diikuti
+            if (! $ikut) {
+                $data['status_in'] = 'tidak_diikuti';
+            }
+
+            $row->update($data);
         }
 
         return $status; // status jam acuan, dipakai untuk notifikasi
