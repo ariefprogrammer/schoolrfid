@@ -22,6 +22,7 @@ use App\Models\Guru;
 use Filament\Forms;
 use Livewire\Attributes\On;
 use App\Models\User;
+use App\Models\Jam;
 
 class LaporanPresensiGuru extends Page implements HasForms, HasTable
 {
@@ -73,29 +74,50 @@ class LaporanPresensiGuru extends Page implements HasForms, HasTable
             'data.dateEnd' => 'required|date|after_or_equal:data.dateStart',
         ]);
 
-        $upahPerjam = Pengaturan::first()?->upah_perjam ?? 0;
+        $jam = (new Jam)->getTable();
 
-        $query = PresensiGuru::query()
+        // Jam pelajaran "diikuti" bila rentang kehadiran guru bersinggungan dengan rentang jamnya.
+        // Aturan ini harus sama dengan HonorGuruService::diikuti(); ubah keduanya bersamaan.
+        $diikuti = "tbl_presensi_guru.jam_in IS NOT NULL
+            AND tbl_presensi_guru.jam_in < TIMESTAMP(tbl_presensi_guru.tanggal_jadwal, {$jam}.jam_selesai)
+            AND (tbl_presensi_guru.jam_out IS NULL
+                OR tbl_presensi_guru.jam_out > TIMESTAMP(tbl_presensi_guru.tanggal_jadwal, {$jam}.jam_mulai))";
+
+        // Kategori tiap baris; saling lepas sehingga jumlah semua kategori = target
+        $kategori = "CASE
+            WHEN tbl_presensi_guru.status_in = 'libur' THEN 'libur'
+            WHEN tbl_presensi_guru.status_in = 'izin' THEN 'izin'
+            WHEN tbl_presensi_guru.status_in = 'sakit' THEN 'sakit'
+            WHEN ({$diikuti}) THEN IF(tbl_presensi_guru.status_in = 'terlambat', 'terlambat', 'hadir')
+            ELSE 'alpa'
+        END";
+
+        $hitung = fn (string $kondisi) => "SUM(CASE WHEN {$kondisi} THEN 1 ELSE 0 END)";
+
+        return PresensiGuru::query()
             ->select(
-                // --- PENTING: ALIAS id_guru sebagai 'id' ---
-                'tbl_presensi_guru.id_guru as id', // Aliaskan id_guru sebagai 'id'
+                // Alias id_guru sebagai 'id' (dipakai Filament sebagai kunci baris)
+                'tbl_presensi_guru.id_guru as id',
                 DB::raw('MAX(tbl_guru.nama_guru) as nama_guru'),
                 DB::raw('COUNT(*) as target'),
-                DB::raw('SUM(CASE WHEN tbl_presensi_guru.status_in = "hadir" THEN 1 ELSE 0 END) as hadir'),
-                DB::raw('SUM(CASE WHEN tbl_presensi_guru.status_in = "terlambat" THEN 1 ELSE 0 END) as terlambat'),
-                DB::raw('SUM(CASE WHEN tbl_presensi_guru.status_out = "pulang" THEN 1 ELSE 0 END) as pulang'),
-                DB::raw('SUM(CASE WHEN tbl_presensi_guru.status_out = "bolos" THEN 1 ELSE 0 END) as bolos'),
-                DB::raw('SUM(CASE WHEN tbl_presensi_guru.jam_in IS NULL AND tbl_presensi_guru.status_in = "unassign" THEN 1 ELSE 0 END) as alpa')
+                DB::raw($hitung("({$kategori}) = 'hadir'") . ' as hadir'),
+                DB::raw($hitung("({$kategori}) = 'terlambat'") . ' as terlambat'),
+                DB::raw($hitung("({$kategori}) IN ('hadir','terlambat') AND tbl_presensi_guru.status_out = 'pulang'") . ' as pulang'),
+                DB::raw($hitung("({$kategori}) IN ('hadir','terlambat') AND tbl_presensi_guru.status_out = 'bolos'") . ' as bolos'),
+                DB::raw($hitung("({$kategori}) = 'izin'") . ' as izin'),
+                DB::raw($hitung("({$kategori}) = 'sakit'") . ' as sakit'),
+                DB::raw($hitung("({$kategori}) = 'libur'") . ' as libur'),
+                DB::raw($hitung("({$kategori}) = 'alpa'") . ' as alpa'),
+                DB::raw($hitung("({$kategori}) IN ('hadir','terlambat') AND tbl_presensi_guru.jam_out IS NULL") . ' as belum_keluar'),
+                DB::raw("SUM(CASE WHEN ({$kategori}) = 'terlambat' THEN tbl_presensi_guru.durasi_terlambat ELSE 0 END) as menit_terlambat"),
+                DB::raw("SUM(CASE WHEN ({$kategori}) IN ('hadir','terlambat') AND tbl_presensi_guru.status_out = 'bolos' THEN tbl_presensi_guru.durasi_bolos ELSE 0 END) as menit_bolos"),
+                DB::raw("SUM(CASE WHEN ({$kategori}) IN ('hadir','terlambat') AND tbl_presensi_guru.jam_out IS NOT NULL THEN tbl_presensi_guru.upah_dasar - tbl_presensi_guru.total_upah ELSE 0 END) as potongan"),
+                DB::raw('SUM(tbl_presensi_guru.total_upah) as honor')
             )
             ->leftJoin('tbl_guru', 'tbl_presensi_guru.id_guru', '=', 'tbl_guru.id')
+            ->leftJoin($jam, "{$jam}.id", '=', 'tbl_presensi_guru.id_jam')
             ->whereBetween('tbl_presensi_guru.tanggal_jadwal', [$this->data['dateStart'], $this->data['dateEnd']])
             ->groupBy('tbl_presensi_guru.id_guru');
-
-        if ($this->forceTableRefresh) {
-            // Ini hanya untuk memastikan Livewire mendeteksi perubahan state
-            // tidak melakukan apapun secara fungsional pada query
-        }
-        return $query;
     }
 
     public function mount(): void
@@ -138,7 +160,21 @@ class LaporanPresensiGuru extends Page implements HasForms, HasTable
                 TextColumn::make('terlambat')->label('Terlambat')->sortable(),
                 TextColumn::make('pulang')->label('Pulang')->sortable(),
                 TextColumn::make('bolos')->label('Bolos')->sortable(),
+                TextColumn::make('izin')->label('Izin')->sortable(),
+                TextColumn::make('sakit')->label('Sakit')->sortable(),
+                TextColumn::make('libur')->label('Libur')->sortable(),
                 TextColumn::make('alpa')->label('Alpa')->sortable(),
+                TextColumn::make('belum_keluar')->label('Belum Keluar')->sortable(),
+                TextColumn::make('menit_terlambat')->label('Menit Terlambat')->sortable(),
+                TextColumn::make('menit_bolos')->label('Menit Bolos')->sortable(),
+                TextColumn::make('potongan')
+                    ->label('Potongan')
+                    ->formatStateUsing(fn ($state) => 'Rp ' . number_format((int) $state, 0, ',', '.'))
+                    ->sortable(),
+                TextColumn::make('honor')
+                    ->label('Total Honor')
+                    ->formatStateUsing(fn ($state) => 'Rp ' . number_format((int) $state, 0, ',', '.'))
+                    ->sortable(),
                 TextColumn::make('target')->label('Target')->sortable(),
             ])
             ->filters([])
