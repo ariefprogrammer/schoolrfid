@@ -33,4 +33,9 @@ class Guru extends Authenticatable // Ubah extends Model menjadi extends Authent
     //     'email_verified_at' => 'datetime',
     //     'password' => 'hashed', // Laravel 10+ otomatis mengenkripsi password
     // ];
+
+    public function tunjangans()
+    {
+        return $this->hasMany(TunjanganGuru::class, 'id_guru');
+    }
 }

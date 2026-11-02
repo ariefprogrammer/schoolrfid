@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Pengaturan;
 use App\Jobs\SendWhatsAppNotification;
 use App\Services\HonorGuruService;
+use App\Services\TunjanganGuruService;
 
 class GuruPresensiMasuk extends Component
 {
@@ -253,6 +254,13 @@ class GuruPresensiMasuk extends Component
 
             // Status, durasi terlambat, dan potongan dihitung & disimpan oleh service
             $statusIn = $service->catatMasuk($sortedSelected, $now);
+
+            // Catat kehadiran harian & tunjangan harian (sekali per hari; tap berikutnya dilewati)
+            try {
+                app(TunjanganGuruService::class)->sinkronHarian((int) $this->guru->id, $now->toDateString());
+            } catch (\Throwable $e) {
+                \Log::error('Gagal sinkron tunjangan harian: ' . $e->getMessage());
+            }
 
             // Notifikasi ke Telegram Kepala Sekolah & Guru
             try {

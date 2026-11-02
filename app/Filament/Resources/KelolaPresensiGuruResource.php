@@ -16,6 +16,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\HtmlString;
+use App\Services\TunjanganGuruService;
 
 class KelolaPresensiGuruResource extends Resource
 {
@@ -341,6 +342,12 @@ class KelolaPresensiGuruResource extends Resource
                             $record->tanggal_jadwal->toDateString()
                         );
 
+                        app(TunjanganGuruService::class)->sinkronHarian(
+                            (int) $record->id_guru,
+                            $record->tanggal_jadwal->toDateString(),
+                            true
+                        );
+
                         Notification::make()
                             ->title('Berhasil dihitung ulang')
                             ->success()
@@ -373,6 +380,11 @@ class KelolaPresensiGuruResource extends Resource
                                 }
 
                                 $service->hitungUlangHari((int) $r->id_guru, $r->tanggal_jadwal->toDateString());
+                                app(TunjanganGuruService::class)->sinkronHarian(
+                                    (int) $r->id_guru,
+                                    $r->tanggal_jadwal->toDateString(),
+                                    true
+                                );
                                 $dihitung++;
                             }
 

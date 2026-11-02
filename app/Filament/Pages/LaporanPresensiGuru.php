@@ -101,6 +101,11 @@ class LaporanPresensiGuru extends Page implements HasForms, HasTable
                 // Alias id_guru sebagai 'id' (dipakai Filament sebagai kunci baris)
                 'tbl_presensi_guru.id_guru as id',
                 DB::raw('MAX(tbl_guru.nama_guru) as nama_guru'),
+                DB::raw("(SELECT COUNT(*) FROM tbl_kehadiran_harian_guru kh
+                    WHERE kh.id_guru = tbl_presensi_guru.id_guru
+                        AND kh.status = 'hadir'
+                        AND kh.tanggal BETWEEN '" . Carbon::parse($this->data['dateStart'])->toDateString() . "'
+                                        AND '" . Carbon::parse($this->data['dateEnd'])->toDateString() . "') as hari_hadir"),
                 DB::raw('COUNT(*) as target'),
                 DB::raw($hitung("({$kategori}) = 'hadir'") . ' as hadir'),
                 DB::raw($hitung("({$kategori}) = 'terlambat'") . ' as terlambat'),
@@ -160,6 +165,7 @@ class LaporanPresensiGuru extends Page implements HasForms, HasTable
             ->columns([
                 static::kolomNomor(),
                 static::kolomNama(),
+                static::kolomAngka('hari_hadir', 'Hari Hadir', 'success'),
                 static::kolomAngka('hadir', 'Hadir', 'success'),
                 static::kolomAngka('terlambat', 'Terlambat', 'warning'),
                 static::kolomAngka('pulang', 'Pulang', 'success'),

@@ -154,7 +154,7 @@ class GuruResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\TunjangansRelationManager::class,
         ];
     }
 

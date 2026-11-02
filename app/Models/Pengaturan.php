@@ -53,6 +53,17 @@ class Pengaturan extends Model
         );
     }
 
+    // protected function hitungPotongan(int $menit, int $batas, int $durasi, int $nominal, int $maks): int
+    // {
+    //     // Batas hanya ambang aktivasi; bila terlewati, seluruh menit dihitung
+    //     if ($menit <= 0 || $menit <= $batas) {
+    //         return 0;
+    //     }
+
+    //     $potongan = intdiv($menit, max(1, $durasi)) * $nominal;
+
+    //     return $maks > 0 ? min($potongan, $maks) : $potongan;
+    // }
     protected function hitungPotongan(int $menit, int $batas, int $durasi, int $nominal, int $maks): int
     {
         // Batas hanya ambang aktivasi; bila terlewati, seluruh menit dihitung
@@ -60,7 +71,9 @@ class Pengaturan extends Model
             return 0;
         }
 
-        $potongan = intdiv($menit, max(1, $durasi)) * $nominal;
+        // Setiap durasi yang dimulai dihitung satu unit (pembulatan ke atas)
+        $unit = (int) ceil($menit / max(1, $durasi));
+        $potongan = $unit * $nominal;
 
         return $maks > 0 ? min($potongan, $maks) : $potongan;
     }
